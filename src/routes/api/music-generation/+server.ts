@@ -7,7 +7,7 @@ import { saveMusicAndGetId } from '$lib/ai/utils.js';
 import { isDemoModeRestricted, DEMO_MODE_MESSAGES } from '$lib/constants/demo-mode.js';
 
 const VALID_ELEVENLABS_MUSIC_MODELS = ['music_v1'];
-const VALID_SUNO_MODELS = ['suno-v3.5', 'suno-v4', 'suno-v4.5', 'suno-v4.5-plus', 'suno-v4.5-all', 'suno-v5', 'suno-v5.5'];
+const VALID_SUNO_MODELS = ['suno-v3.5', 'suno-v4', 'suno-v4.5', 'suno-v4.5-plus', 'suno-v4.5-all', 'suno-v5', 'suno-v5.5', 'suno-v7.5'];
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {

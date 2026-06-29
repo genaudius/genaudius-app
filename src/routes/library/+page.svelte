@@ -123,8 +123,12 @@
 				<h1 class="text-2xl font-bold tracking-tight">My Library</h1>
 				<p class="text-sm mt-0.5" style="color: var(--ga-muted);">{counts.all} track{counts.all !== 1 ? 's' : ''} · {counts.public} public · {counts.private} private</p>
 			</div>
-			<a href="/create" class="px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-90" style="background: var(--ga-gold); color: #000;">
-				+ Create
+			<a
+				href={activeType === 'image' || activeType === 'video' ? '/image-video' : '/create'}
+				class="px-4 py-2 rounded-lg text-sm font-bold transition-opacity hover:opacity-90"
+				style="background: var(--ga-gold); color: #000;"
+			>
+				+ {activeType === 'image' ? 'Create Image' : activeType === 'video' ? 'Create Video' : 'Create Music'}
 			</a>
 		</div>
 
@@ -174,8 +178,8 @@
 				</p>
 				{#if data.tracks.length === 0}
 					<p class="text-sm mt-1">Generate your first track to get started.</p>
-					<a href="/create" class="inline-block mt-6 px-6 py-3 rounded-xl font-bold transition-opacity hover:opacity-90" style="background: var(--ga-gold); color: #000;">
-						Create Music
+					<a href={activeType === 'image' || activeType === 'video' ? '/image-video' : '/create'} class="inline-block mt-6 px-6 py-3 rounded-xl font-bold transition-opacity hover:opacity-90" style="background: var(--ga-gold); color: #000;">
+						{activeType === 'image' ? 'Create Image' : activeType === 'video' ? 'Create Video' : 'Create Music'}
 					</a>
 				{/if}
 			</div>

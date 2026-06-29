@@ -20,7 +20,8 @@ const SUNO_MODEL_MAP: Record<string, string> = {
 	'suno-v4.5-plus': 'V4_5PLUS',
 	'suno-v4.5-all': 'V4_5ALL',
 	'suno-v5': 'V5',
-	'suno-v5.5': 'V5_5'
+	'suno-v5.5': 'V5_5',
+	'suno-v7.5': 'V7_5ALL',
 };
 
 async function getApiKey(): Promise<string> {
