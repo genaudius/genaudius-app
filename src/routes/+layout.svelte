@@ -208,12 +208,17 @@
         {/if}
       </div>
     </div>
+
+    <!-- NowPlayingBar inside Provider to access sidebar context -->
+    {#if playerState.currentTrack}
+      <NowPlayingBar hasSidebar={true} />
+    {/if}
   </Sidebar.Provider>
 {/if}
 
-<!-- Global NowPlaying bar — persists across all routes except standalone (admin/auth) -->
-{#if !isStandalonePage}
-  <NowPlayingBar />
+<!-- NowPlaying for header-only pages (no sidebar) -->
+{#if isHeaderOnlyPage && playerState.currentTrack}
+  <NowPlayingBar hasSidebar={false} />
 {/if}
 
 <Toaster position="top-center" />

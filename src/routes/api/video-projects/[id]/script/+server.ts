@@ -5,6 +5,7 @@ import { videoProjects } from '$lib/server/db/schema.js';
 import { eq, and } from 'drizzle-orm';
 import type { VideoScene } from '$lib/server/db/schema.js';
 import { openRouterProvider } from '$lib/ai/providers/openrouter.js';
+import type { AIResponse } from '$lib/ai/types.js';
 import { z } from 'zod';
 
 // Zod schema — validates every scene the AI returns
@@ -98,17 +99,19 @@ Return ONLY the raw JSON array.`;
 			temperature: 0.7,
 		});
 
-		const text = typeof response === 'string'
+		const raw = typeof response === 'string'
 			? response
-			: (response as { text?: string; content?: string }).text
-			  ?? (response as { text?: string; content?: string }).content
-			  ?? '';
+			: (response as AIResponse).content ?? '';
 
-		// Strip markdown fences if present
-		const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+		// Strip markdown fences then locate the JSON array boundaries
+		const stripped = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+		const start = stripped.indexOf('[');
+		const end = stripped.lastIndexOf(']');
+		if (start === -1 || end === -1) throw new Error(`AI returned no JSON array. Raw: ${stripped.slice(0, 200)}`);
+		const jsonStr = stripped.slice(start, end + 1);
 
 		// Parse and validate with Zod
-		const rawParsed: unknown = JSON.parse(cleaned);
+		const rawParsed: unknown = JSON.parse(jsonStr);
 		const scenes: VideoScene[] = ScenesSchema.parse(rawParsed) as VideoScene[];
 
 		// Ensure endSec of last scene exactly matches durationSec

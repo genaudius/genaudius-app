@@ -1,9 +1,12 @@
 <script lang="ts">
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
+	import { tick } from 'svelte';
 	import type { VideoScene, VideoSceneWithImage, VideoClip } from '$lib/server/db/schema.js';
 
 	let { data } = $props();
+
+	const track = data.track;
 
 	type Step = 'config' | 'script' | 'storyboard' | 'rendering' | 'editor' | 'done';
 
@@ -43,7 +46,6 @@
 	});
 
 	// ── Timeline editor: audio is the master clock ────────────────────────────
-	import { tick } from 'svelte';
 
 	// Two video elements for crossfade transitions (A/B swap)
 	let videoA = $state<HTMLVideoElement | undefined>(undefined);
@@ -183,7 +185,7 @@
 			// Refresh scenes from server
 			const proj = await fetch(`/api/video-projects/${projectId}`).then(r => r.json()) as { scenes?: typeof scenes };
 			if (proj.scenes) scenes = proj.scenes as typeof scenes;
-			toast.success('✓ Escena actualizada — regenerando imagen y clip...');
+			toast.success('✓ Scene updated — regenerating image and clip...');
 			aiPromptText = '';
 			aiPanelScene = null;
 			// Regenerate this scene's storyboard image + clip
@@ -226,7 +228,7 @@
 
 	function getNumScenes(dSec: number) { return Math.max(3, Math.min(10, Math.round(dSec / 6))); }
 	function durationLabel(d: typeof videoDuration) {
-		return d === '15' ? '15 seg' : d === '30' ? '30 seg' : d === '60' ? '1 min' : 'Completa';
+		return d === '15' ? '15 sec' : d === '30' ? '30 sec' : d === '60' ? '1 min' : 'Full song';
 	}
 	const trackDurSec = $derived(Math.floor((track.durationMs ?? 180_000) / 1_000));
 	const configDurSec = $derived(videoDuration === 'full' ? trackDurSec : parseInt(videoDuration));
@@ -248,7 +250,6 @@
 		} else if (!hookEnabled) { hookAiDetected = false; hookTimingHint = ''; }
 	}
 
-	const track = data.track;
 	// ── Ensure project exists in DB ───────────────────────────────────────────
 	async function ensureProject(): Promise<string> {
 		if (projectId) return projectId;
@@ -277,7 +278,7 @@
 	async function generateScript() {
 		isLoading = true;
 		error = '';
-		loadingMsg = 'El agente IA está analizando la canción y generando el guion cinematográfico...';
+		loadingMsg = 'AI agent is analyzing the song and generating the cinematic script...';
 		try {
 			const pid = await ensureProject();
 			const res = await fetch(`/api/video-projects/${pid}/script`, { method: 'POST' });
@@ -286,12 +287,12 @@
 			script = d.scenes ?? [];
 			scenes = script.map(s => ({ ...s, imageStatus: 'pending' as const }));
 			step = 'storyboard';
-			toast.success(`✓ Guion listo: ${script.length} escenas`);
+			toast.success(`✓ Script ready: ${script.length} scenes`);
 			// Auto-advance
 			await generateStoryboard();
 		} catch (e) {
 			error = e instanceof Error ? e.message : String(e);
-			toast.error('Error generando guion');
+			toast.error('Script generation failed');
 			isLoading = false;
 		}
 	}
@@ -310,7 +311,7 @@
 			// Rate limit: wait 11s between calls to stay within Replicate free tier (6 req/min)
 			if (i > 0) await new Promise(r => setTimeout(r, 11_000));
 
-			loadingMsg = `Storyboard: generando imagen ${i + 1} de ${scenes.length}...`;
+			loadingMsg = `Storyboard: generating image ${i + 1} of ${scenes.length}...`;
 			scenes[i] = { ...scenes[i], imageStatus: 'generating' };
 
 			try {
@@ -323,16 +324,16 @@
 				if (!res.ok || d.error) throw new Error(d.error || 'Image gen failed');
 				if (d.scene) scenes[i] = d.scene;
 			} catch (e) {
-				const errMsg = e instanceof Error ? e.message : 'Error desconocido';
+				const errMsg = e instanceof Error ? e.message : 'Unknown error';
 				scenes[i] = { ...scenes[i], imageStatus: 'error', errorMsg: errMsg };
 				allOk = false;
-				toast.error(`Imagen ${i + 1}: ${errMsg}`);
+				toast.error(`Image ${i + 1}: ${errMsg}`);
 			}
 		}
 
 		if (allOk) {
 			step = 'rendering';
-			toast.success('✓ Storyboard completado');
+			toast.success('✓ Storyboard complete');
 			// Auto-advance
 			await renderClips();
 		} else {
@@ -356,7 +357,7 @@
 			// Delay between calls to avoid Replicate rate limits
 			if (renderCount > 0) await new Promise(r => setTimeout(r, 12_000));
 			renderCount++;
-			loadingMsg = `Renderizando clip ${i + 1} de ${scenes.length}... (1–2 min por escena)`;
+			loadingMsg = `Rendering clip ${i + 1} of ${scenes.length}... (1–2 min per scene)`;
 			clips[i] = { ...clips[i], clipStatus: 'generating' };
 			// Force Svelte reactivity
 			clips = [...clips];
@@ -375,12 +376,12 @@
 				clips[i] = { ...clips[i], clipStatus: 'error' };
 				clips = [...clips];
 				allOk = false;
-				toast.error(`Clip ${i + 1}: ${e instanceof Error ? e.message : 'Error'}`);
+			toast.error(`Clip ${i + 1}: ${e instanceof Error ? e.message : 'Error'}`);
 			}
 		}
 
 		step = 'editor';
-		if (allOk) toast.success('✓ Todos los clips listos');
+		if (allOk) toast.success('✓ All clips ready');
 		isLoading = false;
 	}
 
@@ -391,10 +392,10 @@
 
 	// ── Step icons ─────────────────────────────────────────────────────────────
 	const STEPS: { id: Step; label: string; icon: string }[] = [
-		{ id: 'script',     label: 'Guion',       icon: '📝' },
+		{ id: 'script',     label: 'Script',      icon: '📝' },
 		{ id: 'storyboard', label: 'Storyboard',  icon: '🎨' },
-		{ id: 'rendering',  label: 'Renderizado',  icon: '🎞️' },
-		{ id: 'editor',     label: 'Editor',       icon: '🎬' },
+		{ id: 'rendering',  label: 'Rendering',   icon: '🎞️' },
+		{ id: 'editor',     label: 'Editor',      icon: '🎬' },
 	];
 
 	function stepIndex(s: Step) {
@@ -403,17 +404,17 @@
 </script>
 
 <svelte:head>
-	<title>Crear Video — {track.title} — GenAudius</title>
+	<title>Create Video — {track.title} — GenAudius</title>
 </svelte:head>
 
 <div class="min-h-full" style="background:var(--ga-dark); color:var(--ga-text);">
 
 	<!-- Header -->
 	<div class="px-6 py-5 flex items-center gap-4" style="border-bottom:1px solid var(--ga-border);">
-		<button onclick={() => goto('/create')} class="text-sm hover:opacity-70 transition-opacity" style="color:var(--ga-muted);">← Volver</button>
+		<button onclick={() => goto('/create')} class="text-sm hover:opacity-70 transition-opacity" style="color:var(--ga-muted);">← Back</button>
 		<div class="flex-1 min-w-0">
-			<h1 class="text-lg font-bold truncate">🎬 Crear Video — <span style="color:var(--ga-gold);">{track.title}</span></h1>
-			<p class="text-xs mt-0.5" style="color:var(--ga-muted);">Pipeline de producción cinematográfica AI</p>
+			<h1 class="text-lg font-bold truncate">🎬 Create Video — <span style="color:var(--ga-gold);">{track.title}</span></h1>
+			<p class="text-xs mt-0.5" style="color:var(--ga-muted);">AI Cinematic Production Pipeline</p>
 		</div>
 		<!-- Track mini player -->
 		{#if track.audioUrl}
@@ -433,7 +434,7 @@
 					<span class="text-lg" style={done ? 'opacity:1' : active ? 'opacity:1' : 'opacity:0.3'}>{done ? '✅' : s.icon}</span>
 					<div>
 						<p class="text-xs font-semibold" style={active ? 'color:var(--ga-gold);' : done ? 'color:var(--ga-muted);' : 'color:var(--ga-muted);opacity:0.5;'}>{s.label}</p>
-						<p class="text-[10px]" style="color:var(--ga-muted);opacity:0.6;">Paso {i + 1}</p>
+						<p class="text-[10px]" style="color:var(--ga-muted);opacity:0.6;">Step {i + 1}</p>
 					</div>
 				</div>
 				{#if i < STEPS.length - 1}
@@ -468,7 +469,7 @@
 					<span class="ga-wave-bar" style="height:8px;"></span>
 				</div>
 				<p class="text-sm font-semibold" style="color:var(--ga-gold);">{loadingMsg}</p>
-				<p class="text-xs" style="color:var(--ga-muted);">Por favor espera, el pipeline AI está trabajando...</p>
+				<p class="text-xs" style="color:var(--ga-muted);">Please wait, the AI pipeline is working...</p>
 			</div>
 		{/if}
 
@@ -490,7 +491,7 @@
 
 				<!-- Duration -->
 				<div class="rounded-2xl p-5 space-y-3" style="border:1px solid var(--ga-border);background:var(--ga-box);">
-					<p class="text-sm font-semibold">Duración del video</p>
+					<p class="text-sm font-semibold">Video Duration</p>
 					<div class="flex gap-2 flex-wrap">
 						{#each ['15','30','60','full'] as d}
 							<button
@@ -502,12 +503,12 @@
 							>{durationLabel(d as typeof videoDuration)}</button>
 						{/each}
 					</div>
-					<p class="text-xs" style="color:var(--ga-muted);">~{previewScenes} escenas · clips de 5–9s cada uno</p>
+					<p class="text-xs" style="color:var(--ga-muted);">~{previewScenes} scenes · 5–9s clips each</p>
 				</div>
 
 				<!-- Platform -->
 				<div class="rounded-2xl p-5 space-y-3" style="border:1px solid var(--ga-border);background:var(--ga-box);">
-					<p class="text-sm font-semibold">Plataforma</p>
+					<p class="text-sm font-semibold">Platform</p>
 					<div class="grid grid-cols-2 gap-3">
 						{#each [['reels','📱','Reels / Shorts','9:16 vertical'],['youtube','🎬','YouTube','16:9 horizontal']] as [id,icon,label,fmt]}
 							<button
@@ -534,31 +535,31 @@
 								disabled={detectingHook}
 								class="w-9 h-5 rounded-full transition-colors relative shrink-0"
 								style={hookEnabled ? 'background:var(--ga-gold);' : 'background:rgba(255,255,255,0.15);'}
-								role="switch" aria-checked={hookEnabled} aria-label="Activar enganche"
+								role="switch" aria-checked={hookEnabled} aria-label="Enable hook"
 							>
 								<span class="absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all"
 									style={hookEnabled ? 'left:calc(100% - 18px);' : 'left:2px;'}></span>
 							</button>
-							<p class="text-sm font-semibold">Desde el enganche</p>
+							<p class="text-sm font-semibold">Start from hook</p>
 						</div>
 						{#if detectingHook}
 							<div class="flex items-center gap-1.5 text-xs" style="color:var(--ga-gold);">
 								<div class="w-3 h-3 border border-t-transparent rounded-full animate-spin" style="border-color:var(--ga-gold);border-top-color:transparent;"></div>
-								Detectando...
+								Detecting...
 							</div>
 						{:else if hookAiDetected}
-							<span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(214,200,6,0.15);color:var(--ga-gold);">✦ IA detectó</span>
+							<span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(214,200,6,0.15);color:var(--ga-gold);">✦ AI detected</span>
 						{/if}
 					</div>
 					{#if hookEnabled}
 						<div class="relative">
-							<input type="text" placeholder='Ej: "nunca voy a olvidarte"' bind:value={hookText}
+							<input type="text" placeholder='e.g. "I will never forget you"' bind:value={hookText}
 								class="w-full px-4 py-2.5 rounded-lg text-sm outline-none"
 								style="background:rgba(255,255,255,0.05);border:1px solid {hookAiDetected?'rgba(214,200,6,0.4)':'rgba(255,255,255,0.1)'};color:var(--ga-text);" />
 						</div>
 						{#if hookTimingHint}<p class="text-xs" style="color:var(--ga-gold);">◎ {hookTimingHint}</p>{/if}
 					{:else}
-						<p class="text-xs" style="color:var(--ga-muted);">La IA detectará el momento más pegadizo y centrará el video ahí.</p>
+						<p class="text-xs" style="color:var(--ga-muted);">AI will detect the catchiest moment and center the video around it.</p>
 					{/if}
 				</div>
 
@@ -568,7 +569,7 @@
 					class="w-full py-4 rounded-xl text-base font-bold flex items-center justify-center gap-3 transition-all"
 					style="background:var(--ga-gold);color:#000;"
 				>
-					🎬 Iniciar Pipeline — Crear Video
+					🎬 Start Pipeline — Create Video
 				</button>
 			</div>
 
@@ -576,7 +577,7 @@
 		{:else if step === 'script'}
 			<!-- Script step only shown briefly before auto-advancing (isLoading covers it) -->
 			<div class="rounded-2xl p-8 text-center" style="border:1px solid var(--ga-gold);background:rgba(214,200,6,0.04);">
-				<p class="text-sm font-semibold" style="color:var(--ga-gold);">Analizando la canción...</p>
+				<p class="text-sm font-semibold" style="color:var(--ga-gold);">Analyzing the song...</p>
 			</div>
 
 		<!-- ── STEP 2: Storyboard ───────────────────────────────────────────────── -->
@@ -586,19 +587,19 @@
 					<div class="rounded-xl px-5 py-4 flex items-start gap-3" style="background:rgba(253,54,88,0.08);border:1px solid rgba(253,54,88,0.3);">
 						<span class="text-2xl">💳</span>
 						<div>
-							<p class="text-sm font-bold" style="color:var(--ga-pink);">Crédito Replicate insuficiente</p>
+							<p class="text-sm font-bold" style="color:var(--ga-pink);">Insufficient Replicate credit</p>
 							<p class="text-xs mt-1" style="color:var(--ga-muted);">
-								Para generar imágenes con IA necesitas crédito en Replicate. Ve a
+								Image generation requires Replicate credit. Go to
 								<a href="https://replicate.com/account/billing#billing" target="_blank" class="underline font-semibold" style="color:var(--ga-gold);">replicate.com/account/billing</a>,
-								añade un método de pago (mínimo $5), y luego haz clic en ↻ Reintentar.
+								add a payment method (minimum $5), then click ↻ Retry.
 							</p>
 						</div>
 					</div>
 				{/if}
 				<div class="flex items-center justify-between">
-					<h2 class="text-xl font-bold">🎨 Paso 2: Storyboard — {script.length} Escenas</h2>
+					<h2 class="text-xl font-bold">🎨 Step 2: Storyboard — {script.length} Scenes</h2>
 					{#if !isLoading}
-						<button onclick={generateStoryboard} class="px-4 py-2 rounded-lg text-xs font-bold" style="background:rgba(214,200,6,0.1);color:var(--ga-gold);border:1px solid rgba(214,200,6,0.3);">↻ Reintentar</button>
+						<button onclick={generateStoryboard} class="px-4 py-2 rounded-lg text-xs font-bold" style="background:rgba(214,200,6,0.1);color:var(--ga-gold);border:1px solid rgba(214,200,6,0.3);">↻ Retry</button>
 					{/if}
 				</div>
 
@@ -618,12 +619,12 @@
 											<span class="ga-wave-bar" style="height:8px;width:2px;"></span>
 											<span class="ga-wave-bar" style="height:4px;width:2px;"></span>
 										</div>
-										<span class="text-[10px]" style="color:var(--ga-gold);">Generando...</span>
+										<span class="text-[10px]" style="color:var(--ga-gold);">Generating...</span>
 									</div>
 								{:else if scene.imageStatus === 'error'}
 									<div class="flex flex-col items-center gap-1 px-2">
 										<span class="text-xl">❌</span>
-										<span class="text-[8px] text-center leading-tight" style="color:var(--ga-pink);">Falló</span>
+										<span class="text-[8px] text-center leading-tight" style="color:var(--ga-pink);">Failed</span>
 									</div>
 								{:else}
 									<span class="text-2xl opacity-20">🖼️</span>
@@ -636,7 +637,7 @@
 							<!-- Scene info -->
 							<div class="flex-1 p-3 space-y-1.5">
 								<div class="flex items-center gap-2">
-									<span class="text-xs font-bold px-2 py-0.5 rounded" style="background:rgba(214,200,6,0.12);color:var(--ga-gold);">Escena {i + 1}</span>
+									<span class="text-xs font-bold px-2 py-0.5 rounded" style="background:rgba(214,200,6,0.12);color:var(--ga-gold);">Scene {i + 1}</span>
 									<span class="text-xs px-2 py-0.5 rounded" style={
 										scene.imageStatus === 'done' ? 'background:rgba(34,197,94,0.1);color:#4ade80;' :
 										scene.imageStatus === 'generating' ? 'background:rgba(214,200,6,0.1);color:var(--ga-gold);' :
@@ -648,7 +649,7 @@
 								{#if scene.imageStatus === 'error' && scene.errorMsg}
 									<p class="text-[10px] leading-tight mt-1 px-2 py-1 rounded" style="color:var(--ga-pink);background:rgba(253,54,88,0.08);border:1px solid rgba(253,54,88,0.2);">
 										{#if scene.errorMsg.includes('402') || scene.errorMsg.toLowerCase().includes('insufficient credit') || scene.errorMsg.toLowerCase().includes('payment')}
-											💳 Sin crédito Replicate — <a href="https://replicate.com/account/billing#billing" target="_blank" class="underline">añade método de pago</a> y reintenta.
+											💳 No Replicate credit — <a href="https://replicate.com/account/billing#billing" target="_blank" class="underline">add payment method</a> and retry.
 										{:else}
 											⚠️ {scene.errorMsg}
 										{/if}
@@ -666,13 +667,13 @@
 		{:else if step === 'rendering'}
 			<div class="space-y-6">
 				<div class="flex items-center justify-between">
-					<h2 class="text-xl font-bold">🎞️ Paso 3: Renderizando Clips</h2>
+					<h2 class="text-xl font-bold">🎞️ Step 3: Rendering Clips</h2>
 					{#if !isLoading}
-						<button onclick={renderClips} class="px-4 py-2 rounded-lg text-xs font-bold" style="background:rgba(142,85,234,0.1);color:var(--ga-purple);border:1px solid rgba(142,85,234,0.3);">↻ Reintentar</button>
+						<button onclick={renderClips} class="px-4 py-2 rounded-lg text-xs font-bold" style="background:rgba(142,85,234,0.1);color:var(--ga-purple);border:1px solid rgba(142,85,234,0.3);">↻ Retry</button>
 					{/if}
 				</div>
 				<p class="text-sm" style="color:var(--ga-muted);">
-					Generando clips de 5–9 segundos con imagen-a-video AI. {isLoading ? 'Por favor espera...' : ''}
+					Generating 5–9 second clips with image-to-video AI. {isLoading ? 'Please wait...' : ''}
 				</p>
 
 				<div class="space-y-3">
@@ -694,7 +695,7 @@
 												<span class="ga-wave-bar" style="height:8px;width:2px;"></span>
 												<span class="ga-wave-bar" style="height:12px;width:2px;"></span>
 											</div>
-											<span class="text-[10px]" style="color:var(--ga-gold);">Renderizando...</span>
+											<span class="text-[10px]" style="color:var(--ga-gold);">Rendering...</span>
 										</div>
 									{/if}
 								{:else}
@@ -729,10 +730,10 @@
 				<div class="w-14 h-14 rounded-2xl flex items-center justify-center" style="background:rgba(34,197,94,0.12);">
 					<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="10"/></svg>
 				</div>
-				<h3 class="text-lg font-bold" style="color:#4ade80;">¡Todos los clips listos!</h3>
-				<p class="text-sm text-center max-w-xs" style="color:var(--ga-muted);">Abre el workspace para editar, previsualizar y mezclar tu video con audio.</p>
+				<h3 class="text-lg font-bold" style="color:#4ade80;">All clips ready!</h3>
+				<p class="text-sm text-center max-w-xs" style="color:var(--ga-muted);">Open the workspace to edit, preview, and mix your video with audio.</p>
 				<a href="/workspace/{projectId}" class="px-6 py-3 rounded-xl font-bold text-sm" style="background:var(--ga-gold);color:#000;">
-					Abrir Workspace →
+					Open Workspace →
 				</a>
 			</div>
 
@@ -742,8 +743,8 @@
 			{#if projectId}
 				<div class="flex items-center justify-between px-4 py-3 rounded-xl mb-2" style="background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.2);">
 					<div>
-						<p class="text-xs font-bold" style="color:#4ade80;">✓ Clips listos</p>
-						<p class="text-[10px]" style="color:var(--ga-muted);">Usa el workspace completo para editar y previsualizar</p>
+						<p class="text-xs font-bold" style="color:#4ade80;">✓ Clips ready</p>
+						<p class="text-[10px]" style="color:var(--ga-muted);">Use the full workspace to edit and preview</p>
 					</div>
 					<a href="/workspace/{projectId}" class="px-4 py-2 rounded-lg text-xs font-bold shrink-0 ml-4" style="background:var(--ga-gold);color:#000;">
 						Workspace →
@@ -776,13 +777,13 @@
 								onclick={() => { step = 'rendering'; renderClips(); }}
 								class="px-3 py-1.5 rounded-xl text-xs font-bold"
 								style="background:rgba(142,85,234,0.15);color:var(--ga-purple);border:1px solid rgba(142,85,234,0.3);"
-							>🎞️ Generar clips vacíos</button>
+							>🎞️ Generate empty clips</button>
 						{/if}
 						{#if finalVideoUrl}
 							<a href={finalVideoUrl} download="{track.title}-video.mp4"
 								class="px-5 py-2 rounded-xl text-sm font-bold"
 								style="background:var(--ga-gold);color:#000;">
-								⬇️ Descargar
+								⬇️ Download
 							</a>
 						{/if}
 					</div>
@@ -812,7 +813,7 @@
 								onclick={togglePlay}
 								class="w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-transform hover:scale-110"
 								style="background:{atEnd ? 'var(--ga-purple)' : 'var(--ga-gold)'};"
-								title={atEnd ? 'Reproducir de nuevo' : isPlaying ? 'Pausar' : 'Reproducir'}
+								title={atEnd ? 'Play again' : isPlaying ? 'Pause' : 'Play'}
 							>
 								{#if atEnd}
 									<!-- Replay icon -->
@@ -836,7 +837,7 @@
 							<!-- Time display -->
 							<span class="text-xs font-mono shrink-0" style="color:{atEnd ? 'var(--ga-gold)' : 'var(--ga-muted)'};">
 								{formatSec(masterTime)} / {formatSec(totalSec)}
-								{#if atEnd}<span class="ml-1 text-[10px]" style="color:var(--ga-gold);">· FIN</span>{/if}
+								{#if atEnd}<span class="ml-1 text-[10px]" style="color:var(--ga-gold);">· END</span>{/if}
 							</span>
 
 							<!-- Scrub bar -->
@@ -863,7 +864,7 @@
 						<div class="flex items-center justify-center" style="height:240px;">
 							<div class="text-center" style="color:var(--ga-muted);">
 								<div class="text-5xl mb-3">🎬</div>
-								<p class="text-sm">Renderiza los clips para ver el preview</p>
+								<p class="text-sm">Render clips to see the preview</p>
 							</div>
 						</div>
 					{/if}
@@ -989,14 +990,14 @@
 								</div>
 								<div class="flex gap-2 mt-2 flex-wrap">
 									{#if vc.clipUrl}
-										<button onclick={() => seekTo(vc.startSec)} class="text-[10px] px-2 py-0.5 rounded" style="background:rgba(34,197,94,0.1);color:#4ade80;">▶ Ir aquí</button>
+										<button onclick={() => seekTo(vc.startSec)} class="text-[10px] px-2 py-0.5 rounded" style="background:rgba(34,197,94,0.1);color:#4ade80;">▶ Jump here</button>
 									{/if}
 									<button
 										onclick={() => { aiPanelScene = aiPanelScene === i ? null : i; aiPromptText = ''; }}
 										class="text-[10px] px-2 py-0.5 rounded"
 										style="background:rgba(142,85,234,0.15);color:var(--ga-purple);"
-										title="Editar esta escena con IA"
-									>🤖 Editar con IA</button>
+										title="Edit this scene with AI"
+									>🤖 Edit with AI</button>
 									{#if !vc.clipUrl}
 										<button
 											onclick={async () => {
@@ -1020,11 +1021,11 @@
 								<!-- IA Scene Editor panel -->
 								{#if aiPanelScene === i}
 									<div class="px-3 pb-3 pt-2 border-t" style="border-color:var(--ga-border);">
-										<p class="text-[10px] mb-1.5 font-semibold" style="color:var(--ga-purple);">🤖 ¿Qué cambias en esta escena?</p>
+										<p class="text-[10px] mb-1.5 font-semibold" style="color:var(--ga-purple);">🤖 What do you want to change in this scene?</p>
 										<div class="flex gap-2">
 											<input
 												bind:value={aiPromptText}
-												placeholder='Ej: "Añade luces de neón", "Transición de fuego", "Fondo cyberpunk"'
+												placeholder='e.g. "Add neon lights", "Fire transition", "Cyberpunk background"'
 												class="flex-1 text-xs px-3 py-2 rounded-lg"
 												style="background:rgba(255,255,255,0.05);border:1px solid var(--ga-border);color:var(--ga-text);"
 												onkeydown={(e) => e.key === 'Enter' && runAiSceneEdit(i)}
@@ -1034,10 +1035,10 @@
 												disabled={aiLoading || !aiPromptText.trim()}
 												class="px-3 py-2 rounded-lg text-xs font-bold shrink-0"
 												style="background:var(--ga-purple);color:#fff;opacity:{aiLoading ? 0.5 : 1};"
-											>{aiLoading ? '...' : 'Aplicar'}</button>
+											>{aiLoading ? '...' : 'Apply'}</button>
 										</div>
 										<div class="flex gap-2 mt-2 flex-wrap">
-											{#each ['Transición suave de luz', 'Efecto de neón parpadeante', 'Fondo atardecer playa', 'Cámara lenta dramática'] as sugg}
+											{#each ['Smooth light transition', 'Neon flicker effect', 'Beach sunset background', 'Dramatic slow motion'] as sugg}
 												<button onclick={() => { aiPromptText = sugg; }}
 													class="text-[9px] px-2 py-0.5 rounded-full"
 													style="background:rgba(142,85,234,0.1);color:var(--ga-purple);border:1px solid rgba(142,85,234,0.2);"

@@ -23,6 +23,8 @@ class PlayerState {
 	queue = $state<NowPlayingTrack[]>([]);
 	queueIndex = $state(-1);
 	showLyrics = $state(false);
+	showNowPlaying = $state(false);
+	isLiked = $state(false);
 	isExpanded = $state(false);
 
 	get hasNext() {
@@ -126,6 +128,14 @@ class PlayerState {
 		this.showLyrics = !this.showLyrics;
 	}
 
+	toggleNowPlaying() {
+		this.showNowPlaying = !this.showNowPlaying;
+	}
+
+	toggleLike() {
+		this.isLiked = !this.isLiked;
+	}
+
 	toggleExpanded() {
 		this.isExpanded = !this.isExpanded;
 	}
@@ -138,6 +148,8 @@ class PlayerState {
 		this.queue = [];
 		this.queueIndex = -1;
 		this.showLyrics = false;
+		this.showNowPlaying = false;
+		this.isLiked = false;
 		this.isExpanded = false;
 	}
 }
