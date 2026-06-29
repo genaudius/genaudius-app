@@ -1,6 +1,4 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/genaudius/genaudius-app/main/static/branding/logos/default-dark-logo.png" width="260" alt="GenAudius Logo" />
-</div>
 
 # GenAudius
 
