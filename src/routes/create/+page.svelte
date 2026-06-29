@@ -31,15 +31,15 @@
 	}
 	async function generateLyrics() {
 		if (!customStyle.trim() && !customTitle.trim()) { toast('Añade un título o estilo primero'); return; }
-		toast('Generando letra con IA...');
+		toast('Generating lyrics with AI...');
 	}
 	async function optimizeLyrics() {
-		if (!customPrompt.trim()) { toast('Escribe una letra primero'); return; }
-		toast('Optimizando letra...');
+		if (!customPrompt.trim()) { toast('Write lyrics first'); return; }
+		toast('Optimizing lyrics...');
 	}
 	async function enhanceStyle() {
 		if (!customStyle.trim()) { toast('Escribe un estilo primero'); return; }
-		toast('Mejorando estilo con IA...');
+		toast('Enhancing style with AI...');
 	}
 
 	// ─── Studio tab state ──────────────────────────────────────────────────────────
@@ -149,14 +149,14 @@
 
 	// ─── Models with full descriptions (Mureka-style dropdown) ──────────────────
 	const ALL_MODELS = [
-		{ id: 'suno-v7.5', label: 'V7.5-all', desc: 'Último modelo Suno v7.5. Todos los géneros, máxima calidad, hasta 10 min. Recomendado.' },
-		{ id: 'suno-v5.5', label: 'V5.5', desc: 'Generación avanzada. Mayor calidad, creatividad avanzada y hasta 10 min.' },
-		{ id: 'suno-v5',   label: 'V5',   desc: 'Alta calidad. Vocales expresivos, instrumentos detallados, hasta 10 min.' },
-		{ id: 'suno-v4.5-plus', label: 'V4.5+', desc: 'Control de prompt mejorado. Resultados de nivel estudio, hasta 8 min.' },
-		{ id: 'suno-v4.5', label: 'V4.5', desc: 'Modelo equilibrado. Vocal claro, melodías memorables, hasta 8 min.' },
-		{ id: 'suno-v4',   label: 'V4',   desc: 'Música lista para publicar. Vocales emotivos y arreglos musicales sólidos.' },
-		{ id: 'suno-v3.5', label: 'V3.5', desc: 'Creación de música simple. Vocal claro y resultados rápidos.' },
-		{ id: 'music_v1',  label: 'ElevenLabs', desc: 'Motor alternativo de ElevenLabs. Hasta 5 min, estilo diferente.' },
+		{ id: 'suno-v7.5', label: 'V7.5-all', desc: 'Latest model. All genres, max quality, up to 10 min. Recommended.' },
+		{ id: 'suno-v5.5', label: 'V5.5', desc: 'Advanced generation. Higher quality and creativity, up to 10 min.' },
+		{ id: 'suno-v5',   label: 'V5',   desc: 'High quality. Expressive vocals, detailed instruments, up to 10 min.' },
+		{ id: 'suno-v4.5-plus', label: 'V4.5+', desc: 'Improved prompt control. Studio-grade results, up to 8 min.' },
+		{ id: 'suno-v4.5', label: 'V4.5', desc: 'Balanced model. Clear vocals, memorable melodies, up to 8 min.' },
+		{ id: 'suno-v4',   label: 'V4',   desc: 'Publish-ready music. Emotive vocals and solid arrangements.' },
+		{ id: 'suno-v3.5', label: 'V3.5', desc: 'Simple music creation. Clear vocals and fast results.' },
+		{ id: 'music_v1',  label: 'ElevenLabs', desc: 'Alternative ElevenLabs engine. Up to 5 min, different style.' },
 	];
 
 	const SUNO_MODELS = ALL_MODELS.filter((m) => m.id.startsWith('suno-'));
@@ -191,7 +191,7 @@
 
 		isGenerating = true;
 		generatingTaskId = '';
-		generatingStatus = 'Enviando a la IA...';
+		generatingStatus = 'Sending to AI...';
 		startTicker();
 
 		try {
@@ -217,15 +217,15 @@
 			// ── Suno polling ──────────────────────────────────────────────────────
 			if (isSuno && json.taskId) {
 				generatingTaskId = json.taskId;
-				generatingStatus = 'Suno está componiendo tu track...';
+				generatingStatus = 'Creating your track...';
 				let done = false;
 
 				while (!done) {
 					await new Promise((r) => setTimeout(r, 5_000));
-					if (generatingElapsed < 30) generatingStatus = 'Suno está componiendo tu track...';
-					else if (generatingElapsed < 60) generatingStatus = 'Añadiendo melodías y armonías...';
-					else if (generatingElapsed < 120) generatingStatus = 'Refinando el sonido...';
-					else generatingStatus = 'Casi listo...';
+					if (generatingElapsed < 30) generatingStatus = 'Creating your track...';
+					else if (generatingElapsed < 60) generatingStatus = 'Adding melodies and harmonies...';
+					else if (generatingElapsed < 120) generatingStatus = 'Refining the sound...';
+					else generatingStatus = 'Almost ready...';
 
 					let statusJson: { status: string; error?: string; audioUrl?: string; audioData?: string; durationMs?: number; coverUrl?: string; title?: string; tags?: string; musicId?: string };
 					try {
@@ -260,7 +260,7 @@
 						tracks = [newTrack, ...tracks];
 						// Auto-play immediately so NowPlayingBar appears
 						playTrackEntry(newTrack);
-						toast.success('¡Track listo! ▶ Reproduciendo...');
+						toast.success('Track ready!');
 					} else if (statusJson.status === 'error') {
 						toast.error(statusJson.error || 'Generation failed');
 						return;
@@ -289,7 +289,7 @@
 			};
 			tracks = [newTrack, ...tracks];
 			playTrackEntry(newTrack);
-			toast.success('¡Track generado!');
+			toast.success('Track generated!');
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Generation failed');
 		} finally {
@@ -361,7 +361,7 @@
 			if (!res.ok) { toast.error(json.error || 'Failed to save'); return; }
 			// Update local id with the real publication id
 			tracks = tracks.map((t) => t.id === track.id ? { ...t, id: json.publication?.id || t.id, isNew: false } : t);
-			toast.success('Guardado en Library');
+			toast.success('Saved to Library');
 		} catch { toast.error('Failed to save'); }
 	}
 
@@ -379,7 +379,7 @@
 				tracks = tracks.map((t) => t.id === track.id ? { ...t, isPublic: !newPublic } : t);
 				toast.error('Failed to update');
 			} else {
-				toast.success(newPublic ? 'Publicado en Explore' : 'Quitado de Explore');
+				toast.success(newPublic ? 'Published to Explore' : 'Removed from Explore');
 			}
 		} catch { tracks = tracks.map((t) => t.id === track.id ? { ...t, isPublic: !newPublic } : t); }
 	}
@@ -393,7 +393,7 @@
 		const res = await fetch(`/api/publications/${track.id}`, { method: 'DELETE' });
 		if (res.ok) {
 			tracks = tracks.filter((t) => t.id !== track.id);
-			toast.success('Track eliminado');
+			toast.success('Track deleted');
 		} else {
 			toast.error('Failed to delete');
 		}
@@ -402,13 +402,13 @@
 	async function createVideo(track: TrackEntry) {
 		// If unsaved, save first so we have a real ID
 		if (track.isNew) {
-			toast.info('Guardando canción antes de crear video...');
+			toast.info('Saving track before creating video...');
 			await saveToLibrary(track);
 			const saved = tracks.find((t) => t.title === track.title && !t.isNew);
 			if (saved?.id) {
 				goto(`/create-video/${saved.id}`);
 			} else {
-				toast.error('No se pudo guardar la canción. Guárdala primero.');
+				toast.error('Could not save the track. Please save it first.');
 			}
 			return;
 		}
@@ -422,7 +422,7 @@
 		studioMode = 'vocal-remove';
 		activeTab = 'studio';
 		closeMenu();
-		toast.info('Cambiado a Studio → Stem Separation con tu track');
+		toast.info('Switched to Soundtrack → Stem Separation with your track');
 	}
 
 	async function saveTitle(track: TrackEntry) {
@@ -534,7 +534,7 @@
 		{#if !data.sunoConfigured}
 			<div class="mx-5 mt-4 rounded-xl px-4 py-3 flex items-center gap-2 shrink-0" style="background:rgba(253,54,88,0.08);border:1px solid rgba(253,54,88,0.3);">
 				<span>⚠️</span>
-				<p class="text-xs" style="color:var(--ga-pink);">Sin API key. Ve a <a href="/admin" class="underline" style="color:var(--ga-gold);">Admin → Settings</a></p>
+				<p class="text-xs" style="color:var(--ga-pink);">No API key configured. Go to <a href="/admin" class="underline" style="color:var(--ga-gold);">Admin → Settings</a></p>
 			</div>
 		{/if}
 
@@ -546,14 +546,14 @@
 				<div class="space-y-4">
 					<textarea
 						bind:value={easyPrompt}
-						placeholder="Describe la música que quieres crear..."
+						placeholder="Describe the music you want to create..."
 						rows="9"
 						class="w-full rounded-xl px-4 py-3 text-sm resize-none focus:outline-none"
 						style="background:var(--ga-box);border:1px solid var(--ga-border);color:var(--ga-text);"
 					></textarea>
 					<label class="flex items-center gap-2 cursor-pointer text-sm" style="color:var(--ga-muted);">
 						<input type="checkbox" bind:checked={customInstrumental} style="accent-color:var(--ga-gold);" />
-						Instrumental (sin vocales)
+						Instrumental (no vocals)
 					</label>
 				</div>
 
@@ -569,7 +569,7 @@
 								style="background:rgba(255,255,255,0.06);color:var(--ga-muted);border:1px solid var(--ga-border);"
 								onmouseenter={(e) => (e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.1)'}
 								onmouseleave={(e) => (e.currentTarget as HTMLElement).style.background='rgba(255,255,255,0.06)'}
-								onclick={() => toast(`${lbl.trim()} — próximamente`)}
+								onclick={() => toast(`${lbl.trim()} — coming soon`)}
 							>{lbl}</button>
 						{/each}
 					</div>
@@ -810,7 +810,7 @@
 							<span class="ga-wave-bar" style="background:#e0fafa;height:7px;"></span>
 							<span class="ga-wave-bar" style="background:#e0fafa;height:3px;"></span>
 						</span>
-						{generatingStatus || 'Generando...'}
+						{generatingStatus || 'Generating...'}
 					{:else}
 						<!-- music note SVG -->
 						<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -832,7 +832,7 @@
 
 		<div class="flex items-center justify-between px-6 py-4 shrink-0" style="border-bottom:1px solid var(--ga-border);">
 			<h2 class="text-xl font-bold">Library</h2>
-			<a href="/library" class="text-xs hover:opacity-80 transition-opacity" style="color:var(--ga-muted);">Ver todas →</a>
+			<a href="/library" class="text-xs hover:opacity-80 transition-opacity" style="color:var(--ga-muted);">View all →</a>
 		</div>
 
 		<!-- Search -->
@@ -844,7 +844,7 @@
 				<input
 					type="text"
 					bind:value={librarySearch}
-					placeholder="Buscar canción..."
+					placeholder="Search tracks..."
 					class="w-full pl-9 pr-4 py-2 rounded-lg text-sm focus:outline-none"
 					style="background:var(--ga-box);border:1px solid var(--ga-border);color:var(--ga-text);"
 				/>
@@ -863,7 +863,7 @@
 							<span class="ga-wave-bar" style="height:7px;"></span>
 							<span class="ga-wave-bar" style="height:3px;"></span>
 						</span>
-						<span class="text-xs font-semibold" style="color:var(--ga-gold);">Generando...</span>
+						<span class="text-xs font-semibold" style="color:var(--ga-gold);">Generating...</span>
 					</div>
 					<span class="font-mono text-sm tabular-nums" style="color:var(--ga-gold);">
 						{Math.floor(generatingElapsed / 60).toString().padStart(2, '0')}:{(generatingElapsed % 60).toString().padStart(2, '0')}
@@ -881,7 +881,7 @@
 			{#if filteredTracks.length === 0 && !isGenerating}
 				<div class="flex flex-col items-center justify-center h-64 gap-3" style="color:var(--ga-muted);">
 					<span class="text-4xl">🎵</span>
-					<p class="text-sm">Crea tu primera canción</p>
+					<p class="text-sm">Create your first track</p>
 				</div>
 			{:else}
 				{#each filteredTracks as track (track.id)}
