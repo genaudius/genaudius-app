@@ -1,6 +1,6 @@
-WeaveAI version 2.5.0
+GenAudius version 2.5.0
 
-If you're an existing customer and will be updating to WeaveAI v2.5.0 from an older version, THIS IS A BREAKING CHANGE, PLEASE READ THE GUIDE BELOW.
+If you're an existing customer and will be updating to GenAudius v2.5.0 from an older version, THIS IS A BREAKING CHANGE, PLEASE READ THE GUIDE BELOW.
 
 In v2.5.0, the Authentication system has been migrated to a different library, so once you update the app ALL OF THE USERS' EXISTING PASSWORDS WILL STOP WORKING. You will need to do the following:
 1. Backup your existing database in case anything goes wrong you can restore it.

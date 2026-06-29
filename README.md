@@ -1,8 +1,8 @@
 <div align="center">
-  <img src="https://cdn.weaveai.cc/weaveai-logo-dark.png" width="260" alt="WeaveAI Logo" />
+  <img src="https://cdn.weaveai.cc/weaveai-logo-dark.png" width="260" alt="GenAudius Logo" />
 </div>
 
-# WeaveAI
+# GenAudius
 
 A comprehensive multimodal AI platform that provides unified access to 65+ AI models from 9 different providers. Seamlessly switch between text, image, and video generation models while maintaining full conversation history and file management.
 
@@ -174,7 +174,7 @@ Multi-provider architecture with direct API access:
 
    ```bash
    git clone <repository-url>
-   cd weaveai
+   cd genaudius-app
    ```
 
 2. **Install dependencies**
