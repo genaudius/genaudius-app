@@ -416,15 +416,14 @@ export class AdminSettingsService {
 
   // Set multiple settings atomically
   async setSettings(settings: Array<{ key: string; value: string; category: string; description?: string }>): Promise<void> {
-    // Filter out empty values to avoid storing empty strings in database
-    const validSettings = settings.filter(setting => {
-      return setting.value && setting.value.trim() !== '';
-    });
-
     // For simplicity, we'll do individual updates
     // In production, you might want to use a transaction
-    for (const setting of validSettings) {
-      await this.setSetting(setting.key, setting.value, setting.category, setting.description);
+    for (const setting of settings) {
+      if (setting.value === null || setting.value.trim() === '') {
+        await this.deleteSetting(setting.key);
+      } else {
+        await this.setSetting(setting.key, setting.value, setting.category, setting.description);
+      }
     }
   }
 

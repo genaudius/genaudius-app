@@ -55,7 +55,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Check usage limits for sound effect generation
 		try {
-			await UsageTrackingService.checkUsageLimit(session.user.id, 'audio');
+			const cost = UsageTrackingService.calculateCost('sfx');
+			await UsageTrackingService.checkUsageLimit(session.user.id, cost);
 		} catch (error) {
 			if (error instanceof UsageLimitError) {
 				return json({
@@ -87,7 +88,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		);
 
 		// Track usage for successful sound effect generation
-		UsageTrackingService.trackUsage(session.user.id, 'audio').catch(console.error);
+		const cost = UsageTrackingService.calculateCost('sfx');
+		UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 
 		// Return the sound effect response with the database ID
 		return json({

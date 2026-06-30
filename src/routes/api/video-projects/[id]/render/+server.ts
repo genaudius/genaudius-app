@@ -58,17 +58,42 @@ export const POST: RequestHandler = async ({ params, request, locals, url }) => 
 			const webhookUrl = `${webhookBase}/api/webhooks/replicate?projectId=${params.id}&sceneIndex=${targetIndex}&userId=${session.user.id}`;
 
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const prediction = await (client as any).predictions.create({
-				model: 'luma/ray-flash-2-720p',
-				input: {
-					prompt: videoPrompt,
-					start_image_url: startImage,
-					duration,
-					aspect_ratio: aspectRatio,
-				},
-				webhook: webhookUrl,
-				webhook_events_filter: ['completed'],
-			});
+			let prediction;
+			let lastAsyncErr = '';
+			for (let attempt = 0; attempt < 4; attempt++) {
+				try {
+					prediction = await (client as any).predictions.create({
+						model: 'luma/ray-flash-2-720p',
+						input: {
+							prompt: videoPrompt,
+							start_image_url: startImage,
+							duration,
+							aspect_ratio: aspectRatio,
+						},
+						webhook: webhookUrl,
+						webhook_events_filter: ['completed'],
+					});
+					break;
+				} catch (err: any) {
+					const errMsg = err instanceof Error ? err.message : String(err);
+					lastAsyncErr = errMsg;
+					if (errMsg.includes('"status":429') || errMsg.includes('status 429') || errMsg.includes('429 Too Many Requests')) {
+						let waitMs = 10000;
+						const match = errMsg.match(/"retry_after":\s*(\d+)/);
+						if (match && match[1]) {
+							waitMs = parseInt(match[1]) * 1000;
+						}
+						console.warn(`[render] Async Rate limited, waiting ${waitMs}ms before retry...`);
+						await new Promise(r => setTimeout(r, waitMs + 2000));
+					} else if (errMsg.includes('"status":402') || errMsg.includes('status 402') || errMsg.includes('Payment Required')) {
+						await new Promise(r => setTimeout(r, 25_000));
+					} else {
+						throw err;
+					}
+				}
+			}
+
+			if (!prediction) throw new Error(lastAsyncErr || 'Async prediction failed after retries');
 
 			// Store taskId so frontend can poll
 			clips[targetIndex] = { ...scene, clipStatus: 'generating', taskId: prediction.id };
@@ -116,10 +141,18 @@ export const POST: RequestHandler = async ({ params, request, locals, url }) => 
 			if (videoRes.ok) break;
 			const errJson = await videoRes.json().catch(() => ({ error: 'Unknown', retry_after: 10 })) as { error?: string; retry_after?: number };
 			lastVideoErr = errJson.error || `Video render failed: ${videoRes.status}`;
-			if (videoRes.status === 429) {
-				const waitMs = Math.min((errJson.retry_after ?? 10) * 1000, 60_000);
+			
+			if (videoRes.status === 429 || lastVideoErr.includes('"status":429') || lastVideoErr.includes('status 429') || lastVideoErr.includes('429 Too Many Requests')) {
+				let waitMs = 10000;
+				const match = lastVideoErr.match(/"retry_after":\s*(\d+)/);
+				if (match && match[1]) {
+					waitMs = parseInt(match[1]) * 1000;
+				} else if (errJson.retry_after) {
+					waitMs = errJson.retry_after * 1000;
+				}
+				console.warn(`[render] Sync Rate limited, waiting ${waitMs}ms before retry...`);
 				await new Promise(r => setTimeout(r, waitMs + 2000));
-			} else if (videoRes.status === 402) {
+			} else if (videoRes.status === 402 || lastVideoErr.includes('"status":402') || lastVideoErr.includes('status 402') || lastVideoErr.includes('Payment Required')) {
 				await new Promise(r => setTimeout(r, 25_000));
 			} else {
 				throw new Error(lastVideoErr);

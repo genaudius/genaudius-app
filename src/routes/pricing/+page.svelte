@@ -5,6 +5,7 @@
   import { Badge } from "$lib/components/ui/badge/index.js";
   import * as AlertDialog from "$lib/components/ui/alert-dialog/index.js";
   import { Switch } from "$lib/components/ui/switch/index.js";
+  import * as Tooltip from "$lib/components/ui/tooltip/index.js";
   import { toast } from "svelte-sonner";
   import { goto, preloadData } from "$app/navigation";
   import type { SettingsState } from "$lib/stores/settings.svelte.js";
@@ -13,7 +14,7 @@
   import {
     CheckIcon,
     ArrowRightIcon,
-    ArrowLeftIcon,
+    ArrowLeftIcon
   } from "$lib/icons/index.js";
 
   let { data } = $props();
@@ -27,19 +28,13 @@
   const userData = $derived(data.userData);
 
   // Billing interval toggle state
-  let isYearly = $state(false);
+  let isYearly = $state(true);
 
-  // Filtered plans based on billing interval
-  const plans = $derived(
-    allPlans.filter(
-      (plan) => plan.billingInterval === (isYearly ? "year" : "month")
-    )
-  );
-
-  // Separate free plan (always monthly) and paid plans
-  const freePlan = $derived(allPlans.find((plan) => plan.tier === "free"));
-
-  const paidPlans = $derived(plans.filter((plan) => plan.tier !== "free"));
+  // Find dynamic price IDs from the database
+  const getPriceId = (tier: string, interval: string) => {
+    const plan = allPlans.find((p: any) => p.tier === tier && p.billingInterval === interval);
+    return plan?.stripePriceId || "";
+  };
 
   // Loading state for checkout
   let loadingPlan: string | null = $state(null);
@@ -54,64 +49,57 @@
   } | null>(null);
 
   function isCurrentPlan(planTier: string): boolean {
-    // For free tier, check user's planTier directly
     if (planTier === "free") {
       return userData?.planTier === "free";
     }
-    // For paid tiers, check subscription
     return currentSubscription?.plan?.tier === planTier;
   }
 
   function isDowngrade(planTier: string): boolean {
-    const tierOrder = { free: 0, starter: 1, pro: 2, advanced: 3 };
-
-    // Get current user's tier
-    let currentTier = "free"; // default to free
+    const tierOrder = { free: 0, plus: 1, pro: 2 };
+    let currentTier = "free"; 
     if (userData?.planTier === "free") {
       currentTier = "free";
     } else if (currentSubscription?.plan?.tier) {
       currentTier = currentSubscription.plan.tier;
     }
 
-    const currentTierOrder =
-      tierOrder[currentTier as keyof typeof tierOrder] || 0;
+    const currentTierOrder = tierOrder[currentTier as keyof typeof tierOrder] || 0;
     const planTierOrder = tierOrder[planTier as keyof typeof tierOrder] || 0;
-
     return planTierOrder < currentTierOrder;
   }
 
-  function formatLimit(limit: number | null): string {
-    if (limit === null) return "Unlimited";
-    if (limit === 0) return "Not included";
-    return limit.toLocaleString();
-  }
-
-  async function handleSubscribe(priceId: string, planName: string) {
+  async function handleSubscribe(planTier: string, planName: string) {
     if (!user) {
       toast.error("Please log in to subscribe");
       goto("/login");
       return;
     }
 
-    if (
-      isCurrentPlan(plans.find((p) => p.stripePriceId === priceId)?.tier || "")
-    ) {
+    if (isCurrentPlan(planTier)) {
       toast.info("You are already subscribed to this plan");
       return;
     }
 
-    loadingPlan = priceId;
+    if (planTier === 'free') {
+      toast.info("You are already on the free tier.");
+      return;
+    }
+
+    const priceId = getPriceId(planTier, isYearly ? 'year' : 'month');
+    
+    if (!priceId) {
+      toast.error(`Missing Stripe Price ID for ${planName} (${isYearly ? 'Yearly' : 'Monthly'}). Please configure in Stripe.`);
+      return;
+    }
+
+    loadingPlan = planTier;
 
     try {
-      // First, check if user has an existing subscription and try to update it
       if (currentSubscription) {
-        // Show confirmation dialog for subscription changes
-        const isUpgrade = !isDowngrade(
-          plans.find((p) => p.stripePriceId === priceId)?.tier || ""
-        );
+        const isUpgrade = !isDowngrade(planTier);
         const changeType = isUpgrade ? "upgrade" : "downgrade";
 
-        // Set up pending action and show confirmation dialog
         pendingAction = {
           priceId,
           planName,
@@ -119,47 +107,31 @@
           isUpgrade,
         };
         showConfirmDialog = true;
-
-        // Exit early - the actual API call will happen in the confirm handler
         loadingPlan = null;
         return;
       }
 
-      // For new subscribers, create checkout session directly
       await createCheckoutSession(priceId, planName);
     } catch (error) {
       console.error("Error processing subscription:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to process subscription change"
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to process subscription change");
     } finally {
       loadingPlan = null;
     }
   }
 
-  function getButtonText(plan: any): string {
-    if (isCurrentPlan(plan.tier)) return "Current Plan";
-    if (isDowngrade(plan.tier)) return "Downgrade";
-    if (!currentSubscription) return "Get Started";
+  function getButtonText(planTier: string): string {
+    if (isCurrentPlan(planTier)) return "Current Plan";
+    if (isDowngrade(planTier)) return "Downgrade";
+    if (!currentSubscription && planTier !== 'free') return "Get Started";
+    if (planTier === 'free') return "Start Free";
     return "Upgrade";
-  }
-
-  function getButtonVariant(
-    plan: any
-  ): "default" | "destructive" | "outline" | "secondary" | "ghost" | "link" {
-    if (isCurrentPlan(plan.tier)) return "secondary";
-    if (plan.tier === "pro") return "default";
-    return "outline";
   }
 
   // Dialog confirmation handlers
   function handleConfirmUpgrade() {
     if (!pendingAction) return;
-
     showConfirmDialog = false;
-    // Continue with the subscription update using the pending action data
     proceedWithSubscriptionUpdate(pendingAction);
   }
 
@@ -171,16 +143,11 @@
 
   async function proceedWithSubscriptionUpdate(action: typeof pendingAction) {
     if (!action) return;
-
-    loadingPlan = action.priceId;
-
+    loadingPlan = "pro"; // generic loading state
     try {
-      // Try to update existing subscription
       const updateResponse = await fetch("/api/stripe/update-subscription", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId: action.priceId }),
       });
 
@@ -192,20 +159,11 @@
       const updateResult = await updateResponse.json();
 
       if (updateResult.success) {
-        // Show proration info if available
-        if (
-          updateResult.subscription?.proration_amount &&
-          updateResult.subscription.proration_amount > 0
-        ) {
-          const prorationFormatted = (
-            updateResult.subscription.proration_amount / 100
-          ).toFixed(2);
-          toast.info(
-            `A proration charge of $${prorationFormatted} has been applied.`
-          );
+        if (updateResult.subscription?.proration_amount && updateResult.subscription.proration_amount > 0) {
+          const prorationFormatted = (updateResult.subscription.proration_amount / 100).toFixed(2);
+          toast.info(`A proration charge of $${prorationFormatted} has been applied.`);
         }
 
-        // Redirect to billing page with success parameters and expected price ID
         const successUrl = new URL("/settings/billing", window.location.origin);
         successUrl.searchParams.set("subscription_updated", "true");
         successUrl.searchParams.set("plan_name", action.planName);
@@ -215,32 +173,12 @@
         goto(successUrl.pathname + successUrl.search);
         return;
       } else if (updateResult.requiresCheckout) {
-        // Fall through to checkout flow for new subscriptions
-        console.log("No existing subscription found, using checkout flow");
-        // This shouldn't happen in the confirmation flow, but handle it anyway
         createCheckoutSession(action.priceId, action.planName);
-        return;
-      } else {
-        // Redirect to billing page with error parameters
-        const errorUrl = new URL("/settings/billing", window.location.origin);
-        errorUrl.searchParams.set("subscription_error", "true");
-        errorUrl.searchParams.set(
-          "error_message",
-          encodeURIComponent(
-            updateResult.message || "Failed to update subscription"
-          )
-        );
-
-        goto(errorUrl.pathname + errorUrl.search);
         return;
       }
     } catch (error) {
       console.error("Error processing subscription:", error);
-      toast.error(
-        error instanceof Error
-          ? error.message
-          : "Failed to process subscription change"
-      );
+      toast.error(error instanceof Error ? error.message : "Failed to process subscription change");
     } finally {
       loadingPlan = null;
       pendingAction = null;
@@ -249,25 +187,16 @@
 
   async function createCheckoutSession(priceId: string, planName: string) {
     try {
-      // Create new checkout session for new subscribers or if update failed
       const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ priceId }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to create checkout session");
-      }
+      if (!response.ok) throw new Error("Failed to create checkout session");
 
       const { clientSecret } = await response.json();
-
-      // Redirect to checkout page with client secret
-      goto(
-        `/checkout?client_secret=${clientSecret}&plan=${encodeURIComponent(planName)}`
-      );
+      goto(`/checkout?client_secret=${clientSecret}&plan=${encodeURIComponent(planName)}`);
     } catch (error) {
       console.error("Error creating checkout session:", error);
       toast.error("Failed to start checkout process");
@@ -280,349 +209,348 @@
 </script>
 
 <svelte:head>
-  <title>Pricing Plans - {settingsState.siteName}</title>
-  <meta
-    name="description"
-    content="Choose the perfect plan for your AI needs. Access 65+ text, image, video generation models."
-  />
+  <title>Pricing Plans - GenAudius</title>
+  <meta name="description" content="Choose the perfect plan for your AI music needs." />
 </svelte:head>
 
-<div class="container mx-auto p-2 max-w-7xl">
-  <!-- Back Button -->
-  <div class="my-5">
-    <Button
-      variant="ghost"
-      size="sm"
-      class="cursor-pointer p-2 hover:bg-accent rounded-md"
-      onclick={() => goto("/newchat")}
-      onmouseenter={() => warmRoute("/newchat")}
-      ontouchstart={() => warmRoute("/newchat")}
-    >
-      <ArrowLeftIcon class="w-5 h-5" />
-      Go back
-    </Button>
+<div class="min-h-screen bg-black text-white selection:bg-purple-500/30">
+  <!-- Glowing Background Effects -->
+  <div class="fixed inset-0 overflow-hidden pointer-events-none">
+    <div class="absolute -top-[20%] -left-[10%] w-[50%] h-[50%] rounded-full bg-purple-900/20 blur-[120px]"></div>
+    <div class="absolute top-[40%] -right-[10%] w-[40%] h-[60%] rounded-full bg-emerald-900/20 blur-[120px]"></div>
   </div>
 
-  <!-- Header -->
-  <div class="text-center mb-5">
-    <h1 class="text-4xl font-bold mb-4">Simple, Transparent Pricing</h1>
-  </div>
-
-  <!-- Billing Toggle -->
-  <div class="flex flex-col items-center mb-5">
-    <Badge
-      class="mb-5 bg-gradient-to-r from-green-600 to-emerald-600 text-white px-3 py-1 text-sm font-semibold animate-pulse"
-    >
-      💰 Save 20% with a Yearly plan
-    </Badge>
-    <div
-      class="bg-white/80 dark:bg-black/40 backdrop-blur-sm border border-white/20 dark:border-white/10 rounded-xl p-1 inline-flex items-center gap-2 shadow-sm"
-    >
-      <span
-        class={`cursor-default px-4 py-3 text-sm font-semibold transition-all duration-300 rounded-lg ${
-          !isYearly
-            ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md"
-            : "text-muted-foreground hover:text-foreground"
-        }`}
+  <div class="container relative z-10 mx-auto px-4 py-12 max-w-7xl">
+    
+    <!-- Back Button -->
+    <div class="mb-12">
+      <Button
+        variant="ghost"
+        class="text-zinc-400 hover:text-white hover:bg-white/5 transition-colors"
+        onclick={() => goto("/newchat")}
+        onmouseenter={() => warmRoute("/newchat")}
       >
-        Monthly
-      </span>
-      <Switch
-        bind:checked={isYearly}
-        class="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-green-500 data-[state=checked]:to-emerald-500 cursor-pointer mx-2"
-      />
-      <span
-        class={`cursor-default px-4 py-3 text-sm font-semibold transition-all duration-300 rounded-lg ${
-          isYearly
-            ? "bg-gradient-to-r from-green-600 to-emerald-600 text-white shadow-md"
-            : "text-muted-foreground hover:text-foreground"
-        }`}
-      >
-        Yearly
-      </span>
+        <ArrowLeftIcon class="w-4 h-4 mr-2" />
+        Back to App
+      </Button>
     </div>
-  </div>
 
-  <!-- Free Plan Card (Horizontal) -->
-  {#if freePlan}
-    <div class="flex justify-center mb-6">
-      <Card.Root class="max-w-2xl w-full">
-        <Card.Content class="px-5">
-          <div
-            class="flex items-center justify-between gap-4 md:flex-row flex-col"
-          >
-            <!-- Left: Title, Price -->
-            <div class="flex items-center">
-              <div>
-                <h3 class="text-lg font-semibold mb-0.5">{freePlan.name}</h3>
-                <div class="flex items-baseline gap-1">
-                  <span class="text-2xl font-semibold">$0</span>
-                  <span class="text-sm text-muted-foreground">/forever</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Center: Features -->
-            <div class="flex-1 md:px-4">
-              <div class="pricing-free-features">
-                {#each freePlan.features.slice(0, 3) as feature}
-                  <div class="pricing-free-feature-item">
-                    <div
-                      class="w-3 h-3 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0"
-                    >
-                      <CheckIcon class="w-2 h-2 text-white" />
-                    </div>
-                    <span>{feature}</span>
-                  </div>
-                {/each}
-              </div>
-            </div>
-
-            <!-- Right: CTA Button -->
-            <div class="flex-shrink-0">
-              <Button
-                class="px-4 py-2 text-sm font-medium"
-                variant={getButtonVariant(freePlan)}
-                disabled={isCurrentPlan(freePlan.tier) ||
-                  loadingPlan === freePlan.stripePriceId}
-                onclick={() =>
-                  handleSubscribe(freePlan.stripePriceId, freePlan.name)}
-              >
-                {#if loadingPlan === freePlan.stripePriceId}
-                  <div
-                    class="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"
-                  ></div>
-                  Processing...
-                {:else}
-                  {getButtonText(freePlan)}
-                  {#if !isCurrentPlan(freePlan.tier)}
-                    <ArrowRightIcon class="w-3 h-3 ml-2" />
-                  {/if}
-                {/if}
-              </Button>
-
-              {#if isCurrentPlan(freePlan.tier)}
-                <p class="text-xs text-muted-foreground text-center mt-2">
-                  Your current plan
-                </p>
-              {/if}
-            </div>
-          </div>
-        </Card.Content>
-      </Card.Root>
+    <!-- Header -->
+    <div class="text-center mb-16 space-y-4">
+      <Badge class="bg-gradient-to-r from-purple-500/20 to-emerald-500/20 text-emerald-300 border-emerald-500/30 px-4 py-1.5 rounded-full uppercase tracking-wider text-xs font-semibold mb-6 inline-flex">
+        GenAudius Happy Million Users
+      </Badge>
+      <h1 class="text-5xl md:text-6xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-white to-white/70">
+        Start Creating for Free
+      </h1>
+      <p class="text-lg text-zinc-400 max-w-2xl mx-auto mt-4">
+        Choose a transparent plan that fits your creative journey. No lock-in. Cancel anytime.
+      </p>
     </div>
-  {/if}
 
-  <!-- Paid Plans Grid -->
-  <div class="grid md:grid-cols-3 gap-6 mb-8">
-    {#each paidPlans as plan}
-      <Card.Root
-        class="relative transition-all duration-300 hover:shadow-lg h-full"
-      >
-        <Card.Content class="p-6 text-center h-full flex flex-col">
-          <h3 class="text-xl font-bold mb-4">{plan.name}</h3>
+    <!-- Billing Toggle -->
+    <div class="flex flex-col items-center mb-16">
+      <div class="flex items-center gap-2 p-1.5 bg-zinc-900/80 backdrop-blur-md rounded-2xl border border-white/5 shadow-2xl">
+        <button 
+          class={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 ${!isYearly ? 'bg-zinc-800 text-white shadow-lg' : 'text-zinc-400 hover:text-zinc-200'}`}
+          onclick={() => isYearly = false}
+        >
+          Monthly
+        </button>
+        <button 
+          class={`px-6 py-2.5 rounded-xl text-sm font-semibold transition-all duration-300 flex items-center gap-2 ${isYearly ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/20' : 'text-zinc-400 hover:text-zinc-200'}`}
+          onclick={() => isYearly = true}
+        >
+          Yearly <span class="bg-emerald-400/20 text-emerald-100 text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wide">34% off</span>
+        </button>
+      </div>
+    </div>
 
-          <div class="mb-6">
-            <span class="text-4xl font-bold">
-              ${(plan.priceAmount / 100).toFixed(2).replace(/\.00$/, "")}
-            </span>
-            <span class="text-muted-foreground">/{plan.billingInterval}</span>
-            {#if plan.billingInterval === "year"}
-              <div class="text-sm text-muted-foreground mt-2">
-                ${(plan.priceAmount / 100 / 12)
-                  .toFixed(2)
-                  .replace(/\.00$/, "")}/month billed annually
-              </div>
-            {/if}
+    <!-- Plans Grid -->
+    <div class="grid lg:grid-cols-3 gap-8 max-w-6xl mx-auto">
+      
+      <!-- FREE PLAN -->
+      <Card.Root class="relative bg-zinc-900/50 backdrop-blur-xl border-white/10 overflow-hidden hover:border-white/20 transition-all duration-500 group">
+        <Card.Content class="p-8 flex flex-col h-full">
+          <div class="mb-8">
+            <h3 class="text-2xl font-bold text-white mb-2">Free</h3>
+            <div class="flex items-baseline gap-1 mb-2">
+              <span class="text-5xl font-black text-white">$0</span>
+              <span class="text-zinc-400 font-medium">/month</span>
+            </div>
+            <p class="text-zinc-500 text-sm">Free forever</p>
           </div>
 
-          <!-- Combined Features and Limits List -->
-          <ul class="space-y-3 mb-6 flex-grow">
-            <!-- Limits as features (only show if limit is not 0) -->
-            {#if plan.textGenerationLimit !== 0}
-              <li class="flex items-center text-sm">
-                <div
-                  class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mr-3 flex-shrink-0"
-                >
-                  <svg
-                    class="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 8 8"
-                  >
-                    <path d="M6.5 1l-3.5 3.5-1.5-1.5-1 1 2.5 2.5 4.5-4.5z" />
-                  </svg>
-                </div>
-                {formatLimit(plan.textGenerationLimit)} Text Generation{plan.textGenerationLimit
-                  ? "/mo"
-                  : ""}
-              </li>
-            {/if}
-            {#if plan.imageGenerationLimit !== 0}
-              <li class="flex items-center text-sm">
-                <div
-                  class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mr-3 flex-shrink-0"
-                >
-                  <svg
-                    class="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 8 8"
-                  >
-                    <path d="M6.5 1l-3.5 3.5-1.5-1.5-1 1 2.5 2.5 4.5-4.5z" />
-                  </svg>
-                </div>
-                {formatLimit(plan.imageGenerationLimit)} Image Generation{plan.imageGenerationLimit
-                  ? "/mo"
-                  : ""}
-              </li>
-            {/if}
-            {#if plan.videoGenerationLimit !== 0}
-              <li class="flex items-center text-sm">
-                <div
-                  class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mr-3 flex-shrink-0"
-                >
-                  <svg
-                    class="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 8 8"
-                  >
-                    <path d="M6.5 1l-3.5 3.5-1.5-1.5-1 1 2.5 2.5 4.5-4.5z" />
-                  </svg>
-                </div>
-                {formatLimit(plan.videoGenerationLimit)} Video Generation{plan.videoGenerationLimit
-                  ? "/mo"
-                  : ""}
-              </li>
-            {/if}
-            {#if plan.audioGenerationLimit !== 0}
-              <li class="flex items-center text-sm">
-                <div
-                  class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mr-3 flex-shrink-0"
-                >
-                  <svg
-                    class="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 8 8"
-                  >
-                    <path d="M6.5 1l-3.5 3.5-1.5-1.5-1 1 2.5 2.5 4.5-4.5z" />
-                  </svg>
-                </div>
-                {formatLimit(plan.audioGenerationLimit)} Audio Generation{plan.audioGenerationLimit
-                  ? "/mo"
-                  : ""}
-              </li>
-            {/if}
-            <!-- Additional features -->
-            {#each plan.features as feature}
-              <li class="flex items-center text-sm">
-                <div
-                  class="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center mr-3 flex-shrink-0"
-                >
-                  <svg
-                    class="w-2 h-2 text-white"
-                    fill="currentColor"
-                    viewBox="0 0 8 8"
-                  >
-                    <path d="M6.5 1l-3.5 3.5-1.5-1.5-1 1 2.5 2.5 4.5-4.5z" />
-                  </svg>
-                </div>
-                {feature}
-              </li>
-            {/each}
+          <ul class="space-y-4 mb-8 flex-grow">
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">500 credits /month</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 p-3">
+                    <ul class="text-xs space-y-1">
+                      <li>10 Full Songs</li>
+                      <li>~20 Sound Generation</li>
+                      <li>~5 Voice Changer</li>
+                      <li>~10 AI Vocals</li>
+                      <li>~15 Text to Speech<br/><span class="text-[10px] text-zinc-400">(Billed per 100 characters)</span></li>
+                    </ul>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">Model v5.5</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 max-w-[200px] p-3">
+                    <p class="text-xs">Newest music model, capable of generating almost anything audio.</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">50 credits /download</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Basic features only</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Wait in queue to generate</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Personal use only</span>
+            </li>
           </ul>
 
-          {#if isDowngrade(plan.tier)}
-            <p class="text-xs text-muted-foreground text-center mb-4">
-              Downgrade will take effect at the end of your current billing
-              period
-            </p>
-          {/if}
-
-          <Button
-            class="cursor-pointer w-full mt-auto"
-            variant={getButtonVariant(plan)}
-            disabled={isCurrentPlan(plan.tier) ||
-              loadingPlan === plan.stripePriceId}
-            onclick={() => handleSubscribe(plan.stripePriceId, plan.name)}
+          <Button 
+            class="w-full bg-white/10 hover:bg-white/20 text-white border-0 h-12 rounded-xl font-semibold transition-all mt-auto"
+            disabled={isCurrentPlan('free')}
+            onclick={() => handleSubscribe('free', 'Free')}
           >
-            {#if loadingPlan === plan.stripePriceId}
-              <div
-                class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"
-              ></div>
-              Processing...
+            {getButtonText('free')}
+          </Button>
+        </Card.Content>
+      </Card.Root>
+
+      <!-- PLUS PLAN -->
+      <Card.Root class="relative bg-zinc-900/50 backdrop-blur-xl border-white/10 overflow-hidden hover:border-purple-500/30 transition-all duration-500 group">
+        <Card.Content class="p-8 flex flex-col h-full">
+          <div class="mb-8">
+            <h3 class="text-2xl font-bold text-white mb-2">Plus</h3>
+            <div class="flex items-baseline gap-1 mb-2">
+              <span class="text-5xl font-black text-white">${isYearly ? '9.99' : '15.00'}</span>
+              <span class="text-zinc-400 font-medium">/month</span>
+            </div>
+            <p class="text-zinc-500 text-sm">{isYearly ? 'Billed yearly' : 'Billed monthly'}</p>
+          </div>
+
+          <ul class="space-y-4 mb-8 flex-grow">
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">{isYearly ? '60K credits /year' : '5K credits /month'}</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 p-3">
+                    <ul class="text-xs space-y-1">
+                      <li>100 Full Songs</li>
+                      <li>~200 Sound Generation</li>
+                      <li>~50 Voice Changer</li>
+                      <li>~100 AI Vocals</li>
+                      <li>~151 Text to Speech<br/><span class="text-[10px] text-zinc-400">(Billed per 100 characters)</span></li>
+                    </ul>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">Model v6 Pro</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 max-w-[200px] p-3">
+                    <p class="text-xs">Newest music model, capable of generating almost anything audio with improved musical structure and enhanced vocal clarity.</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Unlimited downloads</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">Core features</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 p-3">
+                    <p class="text-xs">Create songs and sound effects</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Fastlane queue</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-purple-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Commercial use</span>
+            </li>
+          </ul>
+
+          <Button 
+            class="w-full bg-purple-600 hover:bg-purple-500 text-white border-0 h-12 rounded-xl font-semibold shadow-lg shadow-purple-500/25 transition-all mt-auto"
+            disabled={loadingPlan === 'plus'}
+            onclick={() => handleSubscribe('plus', 'Plus')}
+          >
+            {#if loadingPlan === 'plus'}
+              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div> Processing...
             {:else}
-              {getButtonText(plan)}
-              {#if !isCurrentPlan(plan.tier)}
-                <ArrowRightIcon class="w-4 h-4 ml-2" />
-              {/if}
+              {getButtonText('plus')}
             {/if}
           </Button>
         </Card.Content>
       </Card.Root>
-    {/each}
+
+      <!-- PRO PLAN -->
+      <Card.Root class="relative bg-zinc-900/80 backdrop-blur-xl border-emerald-500/30 overflow-hidden hover:border-emerald-500/60 shadow-2xl shadow-emerald-900/20 transition-all duration-500 transform lg:-translate-y-2 group">
+        <div class="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-emerald-400 to-emerald-600"></div>
+        <div class="absolute top-0 right-0 bg-emerald-500 text-white text-[10px] font-bold uppercase tracking-wider py-1 px-3 rounded-bl-lg">Most Popular</div>
+        
+        <Card.Content class="p-8 flex flex-col h-full">
+          <div class="mb-8">
+            <h3 class="text-2xl font-bold text-white mb-2">Pro</h3>
+            <div class="flex items-baseline gap-1 mb-2">
+              <span class="text-5xl font-black text-white">${isYearly ? '16.99' : '25.00'}</span>
+              <span class="text-zinc-400 font-medium">/month</span>
+            </div>
+            <p class="text-zinc-500 text-sm">{isYearly ? 'Billed yearly' : 'Billed monthly'}</p>
+          </div>
+
+          <ul class="space-y-4 mb-8 flex-grow">
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">{isYearly ? '300K credits /year' : '25K credits /month'}</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><InfoIcon class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors" /></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 p-3">
+                    <ul class="text-xs space-y-1">
+                      <li>~500 Full Songs</li>
+                      <li>~1000 Sound Generation</li>
+                      <li>~250 Voice Changer</li>
+                      <li>~500 AI Vocals</li>
+                      <li>~757 Text to Speech<br/><span class="text-[10px] text-zinc-400">(Billed per 100 characters)</span></li>
+                    </ul>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300">Model v6 Pro</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><InfoIcon class="w-4 h-4 text-zinc-500 hover:text-zinc-300 transition-colors" /></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 max-w-[200px] p-3">
+                    <p class="text-xs">Newest music model, capable of generating almost anything audio with improved musical structure and enhanced vocal clarity.</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Unlimited downloads</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <div class="flex items-center gap-1.5">
+                <span class="text-zinc-300 font-semibold text-emerald-100">Unlock all features</span>
+                <Tooltip.Root>
+                  <Tooltip.Trigger><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-4 h-4 text-emerald-500 hover:text-emerald-300 transition-colors"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></Tooltip.Trigger>
+                  <Tooltip.Content class="bg-zinc-800 border-zinc-700 text-zinc-200 max-w-[200px] p-3">
+                    <p class="text-xs">Create songs, sound effects, text to speech, remix, replace, extend and stem downloads</p>
+                  </Tooltip.Content>
+                </Tooltip.Root>
+              </div>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Fast generation</span>
+            </li>
+            <li class="flex items-start gap-3">
+              <CheckIcon class="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+              <span class="text-zinc-300">Commercial use</span>
+            </li>
+          </ul>
+
+          <Button 
+            class="w-full bg-emerald-600 hover:bg-emerald-500 text-white border-0 h-12 rounded-xl font-semibold shadow-lg shadow-emerald-600/25 transition-all mt-auto"
+            disabled={loadingPlan === 'pro'}
+            onclick={() => handleSubscribe('pro', 'Pro')}
+          >
+            {#if loadingPlan === 'pro'}
+              <div class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2"></div> Processing...
+            {:else}
+              {getButtonText('pro')}
+            {/if}
+          </Button>
+        </Card.Content>
+      </Card.Root>
+
+    </div>
   </div>
 
-  <!-- FAQ or Additional Info -->
-  <div class="text-center space-y-4">
-    <p class="text-muted-foreground">
-      All paid plans include access to our complete model library and full chat
-      history.
-    </p>
-
-    {#if user}
-      <p class="text-sm text-muted-foreground">
-        Need help choosing? <a
-          href="/settings/billing"
-          class="text-primary hover:underline">View your current usage</a
-        >
-      </p>
-    {:else}
-      <p class="text-sm text-muted-foreground">
-        <a href="/login" class="text-primary hover:underline">Sign in</a> to view
-        your current usage and get personalized recommendations.
-      </p>
-    {/if}
+  <!-- Footer -->
+  <div class="text-center py-12 text-zinc-500 text-sm">
+    <div class="flex justify-center gap-4 mb-4 grayscale opacity-50">
+      <div class="w-8 h-5 bg-white/20 rounded"></div>
+      <div class="w-8 h-5 bg-white/20 rounded"></div>
+      <div class="w-8 h-5 bg-white/20 rounded"></div>
+    </div>
+    <p>Secure payment processing. Cancel anytime.</p>
   </div>
 </div>
 
 <!-- Confirmation Dialog -->
 <AlertDialog.Root bind:open={showConfirmDialog}>
-  <AlertDialog.Content class="sm:max-w-[425px]">
+  <AlertDialog.Content class="bg-zinc-900 border-white/10 text-white sm:max-w-[425px]">
     <AlertDialog.Header>
       <AlertDialog.Title>
         Confirm Subscription {pendingAction?.changeType || "Change"}
       </AlertDialog.Title>
-      <AlertDialog.Description class="text-left space-y-3">
+      <AlertDialog.Description class="text-left space-y-3 text-zinc-400">
         <p>
-          Are you sure you want to <strong>{pendingAction?.changeType}</strong>
-          your subscription to <strong>{pendingAction?.planName}</strong>?
+          Are you sure you want to <strong class="text-white">{pendingAction?.changeType}</strong>
+          your subscription to <strong class="text-white">{pendingAction?.planName}</strong>?
         </p>
-
         {#if pendingAction}
-          <div class="p-3 rounded-lg bg-muted/50">
+          <div class="p-4 rounded-xl bg-black/40 border border-white/5 mt-4">
             {#if pendingAction.isUpgrade}
-              <div class="flex items-start gap-2">
-                <span class="text-green-600 mt-0.5">💳</span>
+              <div class="flex items-start gap-3">
+                <span class="text-emerald-500 mt-0.5 text-xl">💳</span>
                 <div class="text-sm">
-                  <p class="font-medium text-green-700 dark:text-green-400">
-                    Upgrade Billing
-                  </p>
-                  <p class="text-muted-foreground">
-                    You will be charged a prorated amount immediately based on
-                    your current billing cycle.
-                  </p>
+                  <p class="font-medium text-emerald-400 mb-1">Upgrade Billing</p>
+                  <p class="text-zinc-500 leading-relaxed">You will be charged a prorated amount immediately based on your current billing cycle.</p>
                 </div>
               </div>
             {:else}
-              <div class="flex items-start gap-2">
-                <span class="text-blue-600 mt-0.5">💰</span>
+              <div class="flex items-start gap-3">
+                <span class="text-purple-500 mt-0.5 text-xl">💰</span>
                 <div class="text-sm">
-                  <p class="font-medium text-blue-700 dark:text-blue-400">
-                    Downgrade Credit
-                  </p>
-                  <p class="text-muted-foreground">
-                    You will receive a credit for your current plan that will be
-                    applied to future bills.
-                  </p>
+                  <p class="font-medium text-purple-400 mb-1">Downgrade Credit</p>
+                  <p class="text-zinc-500 leading-relaxed">You will receive a credit for your current plan that will be applied to future bills.</p>
                 </div>
               </div>
             {/if}
@@ -630,11 +558,11 @@
         {/if}
       </AlertDialog.Description>
     </AlertDialog.Header>
-    <AlertDialog.Footer>
-      <AlertDialog.Cancel onclick={handleCancelUpgrade}>
+    <AlertDialog.Footer class="mt-6">
+      <AlertDialog.Cancel class="bg-transparent border-white/10 hover:bg-white/5 hover:text-white" onclick={handleCancelUpgrade}>
         Cancel
       </AlertDialog.Cancel>
-      <AlertDialog.Action onclick={handleConfirmUpgrade}>
+      <AlertDialog.Action class="bg-emerald-600 hover:bg-emerald-500 text-white" onclick={handleConfirmUpgrade}>
         Confirm {pendingAction?.changeType || "Change"}
       </AlertDialog.Action>
     </AlertDialog.Footer>

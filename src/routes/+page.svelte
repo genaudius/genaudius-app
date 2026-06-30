@@ -126,46 +126,33 @@
     price: "$0",
     period: "forever",
     features: [
-      "Limited access to Text models",
-      "Limited access to Image models",
+      "Basic features only",
+      "Wait in queue to generate",
+      "Personal use only"
     ],
   };
 
   const paidPlans = [
     {
-      name: "STARTER",
-      price: "$4.99",
+      name: "PLUS",
+      price: "$9.99",
       period: "month",
       features: [
-        "Access to all text models",
-        "Access to some image models",
-        "Basic support",
+        "Core features",
+        "Fastlane queue",
+        "Commercial use"
       ],
     },
     {
       name: "PRO",
-      price: "$14.99",
+      price: "$16.99",
       period: "month",
       features: [
-        "Access to all text models",
-        "Access to all image models",
-        "Access to some video models",
-        "Increased limits",
-        "Priority support",
+        "Unlock all features",
+        "Fast generation",
+        "Commercial use"
       ],
-    },
-    {
-      name: "ADVANCED",
-      price: "$29.99",
-      period: "month",
-      features: [
-        "Access to all text models",
-        "Access to all image models",
-        "Access to all video models",
-        "Increased limits++",
-        "Premium support",
-      ],
-    },
+    }
   ];
 </script>
 
@@ -693,7 +680,7 @@
     </div>
 
     <!-- Paid Plans Grid -->
-    <div class="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-6">
+    <div class="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-6">
       {#each paidPlans as plan (plan.name)}
         <Card.Root
           class="relative transition-all duration-300 hover:shadow-lg h-full"
@@ -821,11 +808,7 @@
             How does your pricing work?
           </Accordion.Trigger>
           <Accordion.Content class="text-gray-300 text-base">
-            We offer a free tier with basic text generation, limited image
-            creation, and chat history. Our Professional plan ($19/month)
-            includes unlimited text generation, advanced image models, video
-            generation, and priority support. Enterprise plans ($49/month) add
-            custom limits.
+            We offer a free tier with basic features and 500 monthly credits. Our Plus plan ($9.99/month billed yearly) includes faster generation and 5,000 credits/month. Our Pro plan ($16.99/month billed yearly) unlocks all features with priority generation and 25,000 credits/month.
           </Accordion.Content>
         </Accordion.Item>
 

@@ -12,17 +12,11 @@ export class UsageLimitError extends Error {
 }
 
 export interface UsageLimits {
-	textGenerationLimit: number | null; // null = unlimited
-	imageGenerationLimit: number | null;
-	videoGenerationLimit: number | null;
-	audioGenerationLimit: number | null;
+	creditLimit: number | null; // null = unlimited
 }
 
 export interface CurrentUsage {
-	textGenerationCount: number;
-	imageGenerationCount: number;
-	videoGenerationCount: number;
-	audioGenerationCount: number;
+	creditsUsed: number;
 	month: number;
 	year: number;
 }
@@ -58,19 +52,13 @@ export class UsageTrackingService {
 				
 				if (freePlan) {
 					return {
-						textGenerationLimit: freePlan.textGenerationLimit,
-						imageGenerationLimit: freePlan.imageGenerationLimit,
-						videoGenerationLimit: freePlan.videoGenerationLimit,
-						audioGenerationLimit: freePlan.audioGenerationLimit
+						creditLimit: freePlan.creditLimit
 					};
 				}
 
 				// Fallback to unlimited if free plan not found in database
 				return {
-					textGenerationLimit: null,
-					imageGenerationLimit: null,
-					videoGenerationLimit: null,
-					audioGenerationLimit: null
+					creditLimit: null
 				};
 			}
 
@@ -87,37 +75,25 @@ export class UsageTrackingService {
 				
 				if (freePlan) {
 					return {
-						textGenerationLimit: freePlan.textGenerationLimit,
-						imageGenerationLimit: freePlan.imageGenerationLimit,
-						videoGenerationLimit: freePlan.videoGenerationLimit,
-						audioGenerationLimit: freePlan.audioGenerationLimit
+						creditLimit: freePlan.creditLimit
 					};
 				}
 
 				// Fallback to unlimited if free plan not found
 				return {
-					textGenerationLimit: null,
-					imageGenerationLimit: null,
-					videoGenerationLimit: null,
-					audioGenerationLimit: null
+					creditLimit: null
 				};
 			}
 
 			// Return plan-specific limits for paid plans
 			return {
-				textGenerationLimit: subscriptionData.plan.textGenerationLimit,
-				imageGenerationLimit: subscriptionData.plan.imageGenerationLimit,
-				videoGenerationLimit: subscriptionData.plan.videoGenerationLimit,
-				audioGenerationLimit: subscriptionData.plan.audioGenerationLimit
+				creditLimit: subscriptionData.plan.creditLimit
 			};
 		} catch (error) {
 			console.error('Error getting user limits:', error);
 			// Default to unlimited on error to be permissive
 			return {
-				textGenerationLimit: null,
-				imageGenerationLimit: null,
-				videoGenerationLimit: null,
-				audioGenerationLimit: null
+				creditLimit: null
 			};
 		}
 	}
@@ -243,10 +219,7 @@ export class UsageTrackingService {
 			await db
 				.update(usageTracking)
 				.set({
-					textGenerationCount: 0,
-					imageGenerationCount: 0,
-					videoGenerationCount: 0,
-					audioGenerationCount: 0,
+					creditsUsed: 0,
 					lastResetAt: now,
 					updatedAt: now,
 				})
@@ -291,10 +264,7 @@ export class UsageTrackingService {
 					userId,
 					month: currentMonth,
 					year: currentYear,
-					textGenerationCount: 0,
-					imageGenerationCount: 0,
-					videoGenerationCount: 0,
-					audioGenerationCount: 0
+					creditsUsed: 0
 				};
 
 				await db.insert(usageTracking).values(newUsage).onConflictDoNothing();
@@ -312,10 +282,7 @@ export class UsageTrackingService {
 					);
 
 				return {
-					textGenerationCount: createdUsage?.textGenerationCount || 0,
-					imageGenerationCount: createdUsage?.imageGenerationCount || 0,
-					videoGenerationCount: createdUsage?.videoGenerationCount || 0,
-					audioGenerationCount: createdUsage?.audioGenerationCount || 0,
+					creditsUsed: createdUsage?.creditsUsed || 0,
 					month: currentMonth,
 					year: currentYear
 				};
@@ -326,10 +293,7 @@ export class UsageTrackingService {
 				await this.resetFreeUsage(userId, currentMonth, currentYear);
 
 				return {
-					textGenerationCount: 0,
-					imageGenerationCount: 0,
-					videoGenerationCount: 0,
-					audioGenerationCount: 0,
+					creditsUsed: 0,
 					month: currentMonth,
 					year: currentYear
 				};
@@ -346,10 +310,7 @@ export class UsageTrackingService {
 		} catch (error) {
 			console.error('Error getting current free usage:', error);
 			return {
-				textGenerationCount: 0,
-				imageGenerationCount: 0,
-				videoGenerationCount: 0,
-				audioGenerationCount: 0,
+				creditsUsed: 0,
 				month: currentMonth,
 				year: currentYear
 			};
@@ -401,10 +362,7 @@ export class UsageTrackingService {
 					userId,
 					month: currentMonth,
 					year: currentYear,
-					textGenerationCount: 0,
-					imageGenerationCount: 0,
-					videoGenerationCount: 0,
-					audioGenerationCount: 0
+					creditsUsed: 0
 				};
 
 				await db.insert(usageTracking).values(newUsage).onConflictDoNothing();
@@ -422,10 +380,7 @@ export class UsageTrackingService {
 					);
 
 				return {
-					textGenerationCount: createdUsage?.textGenerationCount || 0,
-					imageGenerationCount: createdUsage?.imageGenerationCount || 0,
-					videoGenerationCount: createdUsage?.videoGenerationCount || 0,
-					audioGenerationCount: createdUsage?.audioGenerationCount || 0,
+					creditsUsed: createdUsage?.creditsUsed || 0,
 					month: currentMonth,
 					year: currentYear
 				};
@@ -442,10 +397,7 @@ export class UsageTrackingService {
 		} catch (error) {
 			console.error('Error getting current usage:', error);
 			return {
-				textGenerationCount: 0,
-				imageGenerationCount: 0,
-				videoGenerationCount: 0,
-				audioGenerationCount: 0,
+				creditsUsed: 0,
 				month: currentMonth,
 				year: currentYear
 			};
@@ -456,7 +408,7 @@ export class UsageTrackingService {
 	 * Check if user can make a request based on their limits and current usage
 	 * Includes grace period logic for recently expired subscriptions
 	 */
-	static async checkUsageLimit(userId: string, usageType: 'text' | 'image' | 'video' | 'audio'): Promise<void> {
+	static async checkUsageLimit(userId: string, cost: number): Promise<void> {
 		// Get user info and check existence in single query
 		const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 
@@ -471,39 +423,36 @@ export class UsageTrackingService {
 			this.getUserLimits(userId, planTier),
 			this.getCurrentMonthUsage(userId, planTier)
 		]);
-
-		const limitKey = `${usageType}GenerationLimit` as keyof UsageLimits;
-		const usageKey = `${usageType}GenerationCount` as keyof CurrentUsage;
 		
-		const limit = limits[limitKey];
-		const used = currentUsage[usageKey];
+		const limit = limits.creditLimit;
+		const used = currentUsage.creditsUsed;
 
 		// null or -1 means unlimited
 		if (limit === null || limit === -1) {
 			return; // Unlimited usage
 		}
 
-		if (used >= limit) {
+		if (used + cost > limit) {
 			// Check for grace period if user has exceeded limits
 			const hasGracePeriod = await this.checkGracePeriod(userId);
 			
 			if (!hasGracePeriod) {
 				const remaining = Math.max(0, limit - used);
 				throw new UsageLimitError(
-					`${usageType.charAt(0).toUpperCase() + usageType.slice(1)} generation limit exceeded. You have used ${used}/${limit} for this month.`,
+					`Insufficient credits. This action costs ${cost} credits, but you only have ${remaining} credits remaining this month.`,
 					remaining
 				);
 			}
 			
 			// Allow usage during grace period but log it
-			console.log(`Grace period usage for user ${userId}: ${usageType}`);
+			console.log(`Grace period usage for user ${userId} (cost: ${cost})`);
 		}
 	}
 
 	/**
 	 * Track usage after successful generation
 	 */
-	static async trackUsage(userId: string, usageType: 'text' | 'image' | 'video' | 'audio'): Promise<void> {
+	static async trackUsage(userId: string, cost: number): Promise<void> {
 		// Check if user exists in database - if not, skip tracking
 		const userExistsInDb = await this.userExists(userId);
 		if (!userExistsInDb) {
@@ -521,31 +470,17 @@ export class UsageTrackingService {
 				userId,
 				month: currentMonth,
 				year: currentYear,
-				textGenerationCount: usageType === 'text' ? 1 : 0,
-				imageGenerationCount: usageType === 'image' ? 1 : 0,
-				videoGenerationCount: usageType === 'video' ? 1 : 0,
-				audioGenerationCount: usageType === 'audio' ? 1 : 0,
+				creditsUsed: cost,
 				lastResetAt: now,
 			}).onConflictDoUpdate({
 				target: [usageTracking.userId, usageTracking.month, usageTracking.year],
 				set: {
-					textGenerationCount: usageType === 'text'
-						? sql`${usageTracking.textGenerationCount} + 1`
-						: usageTracking.textGenerationCount,
-					imageGenerationCount: usageType === 'image'
-						? sql`${usageTracking.imageGenerationCount} + 1`
-						: usageTracking.imageGenerationCount,
-					videoGenerationCount: usageType === 'video'
-						? sql`${usageTracking.videoGenerationCount} + 1`
-						: usageTracking.videoGenerationCount,
-					audioGenerationCount: usageType === 'audio'
-						? sql`${usageTracking.audioGenerationCount} + 1`
-						: usageTracking.audioGenerationCount,
+					creditsUsed: sql`${usageTracking.creditsUsed} + ${cost}`,
 					updatedAt: now,
 				}
 			});
 
-			console.log(`Tracked ${usageType} usage for user ${userId}`);
+			console.log(`Tracked usage for user ${userId} (cost: ${cost})`);
 		} catch (error) {
 			console.error('Error tracking usage:', error);
 			// Don't throw - usage tracking failure shouldn't block the request
@@ -555,23 +490,18 @@ export class UsageTrackingService {
 	/**
 	 * Check and track usage in one call (for middleware)
 	 */
-	static async checkAndTrackUsage(userId: string, usageType: 'text' | 'image' | 'video' | 'audio'): Promise<void> {
+	static async checkAndTrackUsage(userId: string, cost: number): Promise<void> {
 		// First check if user can make the request
-		await this.checkUsageLimit(userId, usageType);
+		await this.checkUsageLimit(userId, cost);
 
 		// If successful, track the usage
-		await this.trackUsage(userId, usageType);
+		await this.trackUsage(userId, cost);
 	}
 
 	/**
 	 * Check if user is approaching usage limits (>75%)
 	 */
-	static async checkUsageWarnings(userId: string): Promise<{
-		text: boolean;
-		image: boolean;
-		video: boolean;
-		audio: boolean;
-	}> {
+	static async checkUsageWarnings(userId: string): Promise<boolean> {
 		// Get plan tier once to avoid duplicate queries
 		const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
 		const planTier = user?.planTier ?? 'free';
@@ -581,20 +511,9 @@ export class UsageTrackingService {
 			this.getCurrentMonthUsage(userId, planTier)
 		]);
 
-		return {
-			text: limits.textGenerationLimit !== null && limits.textGenerationLimit !== -1
-				? (currentUsage.textGenerationCount / limits.textGenerationLimit) > 0.75
-				: false,
-			image: limits.imageGenerationLimit !== null && limits.imageGenerationLimit !== -1
-				? (currentUsage.imageGenerationCount / limits.imageGenerationLimit) > 0.75
-				: false,
-			video: limits.videoGenerationLimit !== null && limits.videoGenerationLimit !== -1
-				? (currentUsage.videoGenerationCount / limits.videoGenerationLimit) > 0.75
-				: false,
-			audio: limits.audioGenerationLimit !== null && limits.audioGenerationLimit !== -1
-				? (currentUsage.audioGenerationCount / limits.audioGenerationLimit) > 0.75
-				: false
-		};
+		return limits.creditLimit !== null && limits.creditLimit !== -1
+			? (currentUsage.creditsUsed / limits.creditLimit) > 0.75
+			: false;
 	}
 
 	/**
@@ -619,32 +538,11 @@ export class UsageTrackingService {
 		]);
 
 		return {
-			text: {
-				used: currentUsage.textGenerationCount,
-				limit: limits.textGenerationLimit,
-				percentage: limits.textGenerationLimit
-					? Math.min(100, (currentUsage.textGenerationCount / limits.textGenerationLimit) * 100)
-					: 0
-			},
-			image: {
-				used: currentUsage.imageGenerationCount,
-				limit: limits.imageGenerationLimit,
-				percentage: limits.imageGenerationLimit
-					? Math.min(100, (currentUsage.imageGenerationCount / limits.imageGenerationLimit) * 100)
-					: 0
-			},
-			video: {
-				used: currentUsage.videoGenerationCount,
-				limit: limits.videoGenerationLimit,
-				percentage: limits.videoGenerationLimit
-					? Math.min(100, (currentUsage.videoGenerationCount / limits.videoGenerationLimit) * 100)
-					: 0
-			},
-			audio: {
-				used: currentUsage.audioGenerationCount,
-				limit: limits.audioGenerationLimit,
-				percentage: limits.audioGenerationLimit
-					? Math.min(100, (currentUsage.audioGenerationCount / limits.audioGenerationLimit) * 100)
+			credits: {
+				used: currentUsage.creditsUsed,
+				limit: limits.creditLimit,
+				percentage: limits.creditLimit
+					? Math.min(100, (currentUsage.creditsUsed / limits.creditLimit) * 100)
 					: 0
 			},
 			month: currentUsage.month,
@@ -771,10 +669,7 @@ export class UsageTrackingService {
 			await db
 				.update(usageTracking)
 				.set({
-					textGenerationCount: 0,
-					imageGenerationCount: 0,
-					videoGenerationCount: 0,
-					audioGenerationCount: 0,
+					creditsUsed: 0,
 					lastResetAt: now,
 					updatedAt: now,
 				})
@@ -790,6 +685,30 @@ export class UsageTrackingService {
 		} catch (error) {
 			console.error('Error resetting usage:', error);
 			throw error;
+		}
+	}
+
+	/**
+	 * Calculate cost in credits for a given usage type and model
+	 */
+	static calculateCost(usageType: 'text' | 'image' | 'video' | 'music' | 'sfx' | 'voice_change' | 'ai_vocals' | 'tts' | 'transcription', model?: string, length?: number): number {
+		switch (usageType) {
+			case 'music': return 50; // 50 credits per song
+			case 'sfx': return 25; // 25 credits per sound effect
+			case 'voice_change': return 100; // 100 credits per voice change
+			case 'ai_vocals': return 50; // 50 credits per AI vocals
+			case 'tts': return length ? Math.max(1, Math.ceil((length / 100) * 33)) : 33; // 33 credits per 100 characters
+			case 'transcription': return 5;
+			case 'image': return 5;
+			case 'video': return 10;
+			case 'text':
+				// Premium models cost more
+				if (model?.toLowerCase().includes('gpt-4') || model?.toLowerCase().includes('claude-3-5')) {
+					return 5;
+				}
+				return 1;
+			default:
+				return 1;
 		}
 	}
 }

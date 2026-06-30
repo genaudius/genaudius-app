@@ -71,7 +71,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Check usage limits for image generation
 		try {
-			await UsageTrackingService.checkUsageLimit(session.user.id, 'image');
+			const cost = UsageTrackingService.calculateCost('image');
+			await UsageTrackingService.checkUsageLimit(session.user.id, cost);
 		} catch (error) {
 			if (error instanceof UsageLimitError) {
 				return json({
@@ -125,7 +126,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 							if (chunk.done) {
 								// Track usage for successful streaming image generation
 								if (session.user?.id) {
-									UsageTrackingService.trackUsage(session.user.id, 'image').catch(console.error);
+									const cost = UsageTrackingService.calculateCost('image');
+									UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 								}
 								break;
 							}
@@ -154,7 +156,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		// Track usage for successful image generation (non-streaming)
-		UsageTrackingService.trackUsage(session.user.id, 'image').catch(console.error);
+		const cost = UsageTrackingService.calculateCost('image');
+		UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 
 		// Non-streaming response
 		return json(response);

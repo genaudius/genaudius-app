@@ -57,7 +57,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		// Check usage limits for text generation (if userId provided)
 		if (userId) {
 			try {
-				await UsageTrackingService.checkUsageLimit(userId, 'text');
+				const cost = UsageTrackingService.calculateCost('text', model);
+				await UsageTrackingService.checkUsageLimit(userId, cost);
 			} catch (error) {
 				if (error instanceof UsageLimitError) {
 					return json({ 
@@ -120,7 +121,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 				// Track usage for successful multimodal request
 				if (userId) {
-					UsageTrackingService.trackUsage(userId, 'text').catch(console.error);
+					const cost = UsageTrackingService.calculateCost('text', model);
+					UsageTrackingService.trackUsage(userId, cost).catch(console.error);
 				}
 
 				return json(response);
@@ -168,7 +170,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 				// Track usage for successful video generation
 				if (userId) {
-					UsageTrackingService.trackUsage(userId, 'video').catch(console.error);
+					const cost = UsageTrackingService.calculateCost('video', model);
+					UsageTrackingService.trackUsage(userId, cost).catch(console.error);
 				}
 
 				return json(videoResponse);
@@ -206,7 +209,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 							if (chunk.done) {
 								// Track usage for successful streaming completion
 								if (userId) {
-									UsageTrackingService.trackUsage(userId, 'text').catch(console.error);
+									const cost = UsageTrackingService.calculateCost('text', model);
+									UsageTrackingService.trackUsage(userId, cost).catch(console.error);
 								}
 								controller.enqueue(encoder.encode('data: [DONE]\n\n'));
 								break;
@@ -232,7 +236,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Track usage for successful text generation (non-streaming)
 		if (userId) {
-			UsageTrackingService.trackUsage(userId, 'text').catch(console.error);
+			const cost = UsageTrackingService.calculateCost('text', model);
+			UsageTrackingService.trackUsage(userId, cost).catch(console.error);
 		}
 
 		return json(response);

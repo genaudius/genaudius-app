@@ -545,6 +545,8 @@
               bind:value={stripePublishableKey}
               class="font-mono"
               disabled={data.isDemoMode}
+              autocomplete="off"
+              data-1p-ignore="true"
             />
             <p class="text-xs text-muted-foreground">
               Used in the frontend for creating payment elements (safe to expose
@@ -580,6 +582,8 @@
               bind:value={stripeSecretKey}
               class="font-mono"
               disabled={data.isDemoMode}
+              autocomplete="new-password"
+              data-1p-ignore="true"
             />
             <p class="text-xs text-muted-foreground">
               Used on the server for API calls
@@ -612,6 +616,8 @@
               bind:value={stripeWebhookSecret}
               class="font-mono"
               disabled={data.isDemoMode}
+              autocomplete="new-password"
+              data-1p-ignore="true"
             />
             <p class="text-xs text-muted-foreground">
               Used to verify webhook events from Stripe

@@ -21,12 +21,10 @@
   let currency = $state("usd");
   let billingInterval = $state("");
   
-  // Select display values
   const tierOptions = [
     { value: "free", label: "Free" },
-    { value: "starter", label: "Starter" },
-    { value: "pro", label: "Pro" },
-    { value: "advanced", label: "Advanced" }
+    { value: "plus", label: "Plus" },
+    { value: "pro", label: "Pro" }
   ];
   
   const currencyOptions = [
@@ -222,53 +220,18 @@
           <h3 class="text-lg font-semibold">Usage Limits</h3>
           <p class="text-sm text-muted-foreground">Leave empty for unlimited usage</p>
 
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="grid grid-cols-1 gap-4">
             <div class="space-y-2">
-              <Label for="textGenerationLimit">Text Generation Limit</Label>
+              <Label for="creditLimit">Monthly Credit Limit</Label>
               <Input
-                id="textGenerationLimit"
-                name="textGenerationLimit"
+                id="creditLimit"
+                name="creditLimit"
                 type="number"
                 placeholder="Unlimited"
                 min="0"
-                value={form?.textGenerationLimit || ''}
+                value={form?.creditLimit || ''}
               />
-            </div>
-
-            <div class="space-y-2">
-              <Label for="imageGenerationLimit">Image Generation Limit</Label>
-              <Input
-                id="imageGenerationLimit"
-                name="imageGenerationLimit"
-                type="number"
-                placeholder="Unlimited"
-                min="0"
-                value={form?.imageGenerationLimit || ''}
-              />
-            </div>
-
-            <div class="space-y-2">
-              <Label for="videoGenerationLimit">Video Generation Limit</Label>
-              <Input
-                id="videoGenerationLimit"
-                name="videoGenerationLimit"
-                type="number"
-                placeholder="Unlimited"
-                min="0"
-                value={form?.videoGenerationLimit || ''}
-              />
-            </div>
-
-            <div class="space-y-2">
-              <Label for="audioGenerationLimit">Audio Generation Limit</Label>
-              <Input
-                id="audioGenerationLimit"
-                name="audioGenerationLimit"
-                type="number"
-                placeholder="Unlimited"
-                min="0"
-                value={form?.audioGenerationLimit || ''}
-              />
+              <p class="text-xs text-muted-foreground">The number of credits the user receives each month.</p>
             </div>
           </div>
         </div>

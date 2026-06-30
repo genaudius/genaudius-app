@@ -82,7 +82,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Check usage limits for audio transcription
 		try {
-			await UsageTrackingService.checkUsageLimit(session.user.id, 'audio');
+			const cost = UsageTrackingService.calculateCost('transcription');
+			await UsageTrackingService.checkUsageLimit(session.user.id, cost);
 		} catch (error) {
 			if (error instanceof UsageLimitError) {
 				return json({
@@ -125,7 +126,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		);
 
 		// Track usage for successful transcription
-		UsageTrackingService.trackUsage(session.user.id, 'audio').catch(console.error);
+		const cost = UsageTrackingService.calculateCost('transcription');
+		UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 
 		// Return the transcription response with database ID
 		return json({

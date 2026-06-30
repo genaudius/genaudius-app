@@ -2,7 +2,7 @@ import Stripe from 'stripe';
 import { env } from '$env/dynamic/private';
 import { db } from './db/index.js';
 import { users, subscriptions, pricingPlans, paymentHistory } from './db/schema.js';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { getStripeSecretKey } from './settings-store.js';
 
 // Cache for the Stripe instance to avoid creating it repeatedly
@@ -171,6 +171,43 @@ export class StripeService {
 		} catch (error) {
 			console.error('Error creating checkout session:', error);
 			throw new Error('Failed to create checkout session');
+		}
+	}
+
+	static async createOneTimeCheckoutSession({
+		userId,
+		priceId,
+		successUrl,
+		cancelUrl,
+		credits,
+	}: CreateCheckoutSessionParams & { credits: number }): Promise<Stripe.Checkout.Session> {
+		try {
+			const customerId = await this.getOrCreateCustomer(userId);
+			const stripe = await getStripe();
+
+			const session = await stripe.checkout.sessions.create({
+				ui_mode: 'hosted',
+				customer: customerId,
+				line_items: [
+					{
+						price: priceId,
+						quantity: 1,
+					},
+				],
+				mode: 'payment',
+				success_url: successUrl,
+				cancel_url: cancelUrl,
+				metadata: {
+					userId,
+					type: 'topup',
+					credits: credits.toString(),
+				},
+			});
+
+			return session;
+		} catch (error) {
+			console.error('Error creating one-time checkout session:', error);
+			throw new Error('Failed to create one-time checkout session');
 		}
 	}
 
@@ -746,8 +783,30 @@ export class StripeService {
 	static async handleCheckoutSessionCompleted(session: Stripe.Checkout.Session): Promise<void> {
 		try {
 			console.log('Processing checkout session completed:', session.id);
+			
+			const type = session.metadata?.type;
+			const userId = session.metadata?.userId;
 
-			// Only process subscription mode sessions
+			// Handle Top-Up purchases
+			if (type === 'topup' && session.payment_status === 'paid') {
+				if (!userId) {
+					console.warn('No user ID found in checkout session metadata for topup');
+					return;
+				}
+				const creditsToAdd = parseInt(session.metadata?.credits || '0', 10);
+				if (creditsToAdd > 0) {
+					// Add credits to user's balance
+					await db.execute(
+						sql`UPDATE "user" SET "creditBalance" = COALESCE("creditBalance", 0) + ${creditsToAdd} WHERE id = ${userId}`
+					);
+					console.log(`Successfully added ${creditsToAdd} credits to user ${userId}`);
+					
+					// Optionally, log this topup in a paymentHistory/transactions table here
+				}
+				return;
+			}
+
+			// Only process subscription mode sessions for default logic
 			if (session.mode !== 'subscription') {
 				console.log('Skipping non-subscription checkout session');
 				return;

@@ -18,7 +18,9 @@
     GemIcon,
     HistoryIcon,
     WalletIcon,
+    ZapIcon,
   } from "$lib/icons/index.js";
+  import { TOPUP_PACKAGES } from "$lib/config/topups.js";
 
   let { data } = $props();
 
@@ -222,7 +224,8 @@
     if (
       !urlParams.has("subscription_updated") &&
       !urlParams.has("subscription_error") &&
-      !urlParams.has("session_id")
+      !urlParams.has("session_id") &&
+      !urlParams.has("topup")
     ) {
       return;
     }
@@ -247,6 +250,14 @@
       const errorMessage =
         urlParams.get("error_message") || "Failed to update subscription";
       toast.error(decodeURIComponent(errorMessage));
+    }
+
+    // Handle Top-Up redirects
+    if (urlParams.get("topup") === "success") {
+      toast.success("Credits have been added to your account successfully!");
+      shouldRefresh = true;
+    } else if (urlParams.get("topup") === "canceled") {
+      toast.info("Credit purchase was canceled.");
     }
 
     // Handle checkout session completion (from PayPal/Card payments)
@@ -431,6 +442,39 @@
       paymentMethodInitialized = true;
     }
   }
+
+  // Handle top-up purchases
+  let isPurchasingTopup = $state<string | null>(null);
+
+  async function handleTopupPurchase(packageId: string) {
+    try {
+      isPurchasingTopup = packageId;
+      const response = await fetch("/api/stripe/create-topup-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to create checkout session");
+      }
+
+      const { url } = await response.json();
+      
+      // Redirect to Stripe Checkout
+      if (url) {
+        window.location.href = url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
+      
+    } catch (error) {
+      console.error("Error purchasing top-up:", error);
+      toast.error("Failed to start checkout process");
+      isPurchasingTopup = null;
+    }
+  }
 </script>
 
 <svelte:head>
@@ -543,6 +587,53 @@
           {/if}
         </div>
       {/if}
+    </Card.Content>
+  </Card.Root>
+
+  <!-- Credit Top-Ups -->
+  <Card.Root class="shadow-none border-primary/20">
+    <Card.Header>
+      <Card.Title class="flex items-center gap-2">
+        <ZapIcon class="w-5 h-5 text-primary" />
+        Buy Extra Credits
+      </Card.Title>
+      <Card.Description>
+        Running low on credits? Purchase a one-time credit top-up that never expires.
+      </Card.Description>
+    </Card.Header>
+    <Card.Content>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {#each TOPUP_PACKAGES as pkg}
+          <div class="flex flex-col p-4 rounded-xl border {pkg.popular ? 'border-primary ring-1 ring-primary/20' : 'border-border'} relative">
+            {#if pkg.popular}
+              <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+                <Badge class="bg-primary hover:bg-primary text-primary-foreground text-[10px] uppercase tracking-wider font-bold">Most Popular</Badge>
+              </div>
+            {/if}
+            <h3 class="text-lg font-semibold text-center mt-2">{pkg.name}</h3>
+            <div class="text-center mt-2 mb-4">
+              <span class="text-3xl font-bold">${(pkg.priceAmount / 100).toFixed(2)}</span>
+            </div>
+            <div class="flex-1 flex flex-col justify-center items-center py-4 bg-muted/50 rounded-lg mb-4">
+              <span class="text-2xl font-bold text-primary">+{pkg.credits.toLocaleString()}</span>
+              <span class="text-sm text-muted-foreground uppercase tracking-wider mt-1">Credits</span>
+            </div>
+            <Button 
+              variant={pkg.popular ? "default" : "outline"} 
+              class="w-full"
+              disabled={isPurchasingTopup !== null}
+              onclick={() => handleTopupPurchase(pkg.id)}
+            >
+              {#if isPurchasingTopup === pkg.id}
+                <div class="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin mr-2"></div>
+                Processing...
+              {:else}
+                Buy Now
+              {/if}
+            </Button>
+          </div>
+        {/each}
+      </div>
     </Card.Content>
   </Card.Root>
 

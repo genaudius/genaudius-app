@@ -146,10 +146,46 @@ export class MusicState {
         }),
       });
 
-      const data = await response.json();
+      let data = await response.json();
 
       if (!response.ok) {
         throw new Error(data.error || "Failed to generate music");
+      }
+
+      // If provider is Suno, we need to poll for the result since it's asynchronous
+      if (data.provider === 'suno' && data.taskId) {
+        const taskId = data.taskId;
+        let isDone = false;
+        
+        // Poll every 5 seconds for up to 3 minutes (36 attempts)
+        const maxAttempts = 36;
+        let attempts = 0;
+        
+        while (!isDone && attempts < maxAttempts) {
+          attempts++;
+          // Sleep for 5 seconds
+          await new Promise((resolve) => setTimeout(resolve, 5000));
+          
+          const pollResponse = await fetch(`/api/music-generation?taskId=${taskId}`);
+          if (!pollResponse.ok) {
+            throw new Error(`Polling failed: ${pollResponse.statusText}`);
+          }
+          
+          const pollData = await pollResponse.json();
+          
+          if (pollData.status === 'done') {
+            isDone = true;
+            // Overwrite `data` with the final result containing audioData
+            data = pollData;
+          } else if (pollData.status === 'error') {
+            throw new Error(pollData.error || "Failed to generate music via Suno");
+          }
+          // If status is 'pending', the loop continues
+        }
+        
+        if (!isDone) {
+          throw new Error("Music generation timed out. It might still be processing in the background.");
+        }
       }
 
       // Convert base64 audio to blob URL

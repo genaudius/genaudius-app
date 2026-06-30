@@ -31,7 +31,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		// Check usage limits for video generation
 		try {
-			await UsageTrackingService.checkUsageLimit(session.user.id, 'video');
+			const cost = UsageTrackingService.calculateCost('video');
+			await UsageTrackingService.checkUsageLimit(session.user.id, cost);
 		} catch (error) {
 			if (error instanceof UsageLimitError) {
 				return json({ 
@@ -114,15 +115,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		});
 
 		// Track usage for successful video generation
-		UsageTrackingService.trackUsage(session.user.id, 'video').catch(console.error);
+		const cost = UsageTrackingService.calculateCost('video');
+		UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 
 		return json(response);
 
 	} catch (error) {
 		console.error('Video generation API error:', error);
+		const errMsg = error instanceof Error ? error.message : 'Internal server error';
+		
+		let status = 500;
+		if (errMsg.includes('"status":429') || errMsg.includes('status 429') || errMsg.includes('429 Too Many Requests')) {
+			status = 429;
+		} else if (errMsg.includes('"status":402') || errMsg.includes('status 402') || errMsg.includes('Payment Required')) {
+			status = 402;
+		}
+
 		return json(
-			{ error: error instanceof Error ? error.message : 'Internal server error' },
-			{ status: 500 }
+			{ error: errMsg },
+			{ status }
 		);
 	}
 };

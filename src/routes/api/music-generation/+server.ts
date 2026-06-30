@@ -4,6 +4,9 @@ import { generateMusic as elevenlabsGenerateMusic } from '$lib/ai/providers/elev
 import { sunoProvider, sunoSubmitTask, sunoCheckStatus } from '$lib/ai/providers/suno.js';
 import { UsageTrackingService, UsageLimitError } from '$lib/server/usage-tracking.js';
 import { saveMusicAndGetId } from '$lib/ai/utils.js';
+import { db } from '$lib/server/db/index.js';
+import { music } from '$lib/server/db/schema.js';
+import { and, eq, gte } from 'drizzle-orm';
 import { isDemoModeRestricted, DEMO_MODE_MESSAGES } from '$lib/constants/demo-mode.js';
 
 const VALID_ELEVENLABS_MUSIC_MODELS = ['music_v1'];
@@ -59,7 +62,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 
 		try {
-			await UsageTrackingService.checkUsageLimit(session.user.id, 'audio');
+			const cost = UsageTrackingService.calculateCost('music');
+			await UsageTrackingService.checkUsageLimit(session.user.id, cost);
 		} catch (error) {
 			if (error instanceof UsageLimitError) {
 				return json({
@@ -83,6 +87,62 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				title,
 				callBackUrl: `${origin}/api/suno-callback`,
 			});
+
+			const userId = session.user.id;
+			
+			// BACKGROUND POLL & SAVE
+			(async () => {
+				const MAX_WAIT = 600_000; // 10 mins
+				const deadline = Date.now() + MAX_WAIT;
+				let track = null;
+
+				while (Date.now() < deadline) {
+					try {
+						const result = await sunoCheckStatus(taskId);
+						if (result.status === 'done') { track = result.track; break; }
+						if (result.status === 'error') return;
+					} catch (e) {
+						// ignore poll error and try again
+					}
+					await new Promise(r => setTimeout(r, 10000));
+				}
+
+				if (!track) return; // timed out
+
+				try {
+					const titleToCheck = track.title || taskId;
+					const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+					
+					const existing = await db.select().from(music).where(
+						and(
+							eq(music.userId, userId),
+							eq(music.prompt, titleToCheck),
+							gte(music.createdAt, tenMinutesAgo)
+						)
+					).limit(1);
+
+					if (existing.length === 0) {
+						// Not saved by frontend, save it in the background
+						const audioRes = await fetch(track.audioUrl);
+						if (audioRes.ok) {
+							const audioData = Buffer.from(await audioRes.arrayBuffer()).toString('base64');
+							const durationMs = Math.round((track.duration || 0) * 1000);
+							await saveMusicAndGetId(
+								audioData,
+								'audio/mpeg',
+								userId,
+								titleToCheck,
+								'suno',
+								durationMs,
+								false
+							);
+						}
+					}
+				} catch (e) {
+					console.error('Background saving error:', e);
+				}
+			})();
+
 			return json({ taskId, provider: 'suno' });
 		}
 
@@ -105,7 +165,8 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			response.isInstrumental
 		);
 
-		UsageTrackingService.trackUsage(session.user.id, 'audio').catch(console.error);
+		const cost = UsageTrackingService.calculateCost('music');
+		UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 		return json({ ...response, musicId });
 
 	} catch (error) {
@@ -146,7 +207,8 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 				false
 			);
 
-			UsageTrackingService.trackUsage(session.user.id, 'audio').catch(console.error);
+			const cost = UsageTrackingService.calculateCost('music');
+			UsageTrackingService.trackUsage(session.user.id, cost).catch(console.error);
 
 			return json({
 				status: 'done',

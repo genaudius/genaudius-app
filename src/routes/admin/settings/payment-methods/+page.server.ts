@@ -43,10 +43,10 @@ export const actions: Actions = {
 
     const data = await request.formData()
 
-    const environment = data.get('environment')?.toString()
-    const stripePublishableKey = data.get('stripePublishableKey')?.toString()
-    const stripeSecretKey = data.get('stripeSecretKey')?.toString()
-    const stripeWebhookSecret = data.get('stripeWebhookSecret')?.toString()
+    const environment = data.get('environment')?.toString()?.trim()
+    const stripePublishableKey = data.get('stripePublishableKey')?.toString()?.trim()
+    const stripeSecretKey = data.get('stripeSecretKey')?.toString()?.trim()
+    const stripeWebhookSecret = data.get('stripeWebhookSecret')?.toString()?.trim()
 
     // Basic validation
     if (!environment || !['test', 'live'].includes(environment)) {
@@ -62,10 +62,14 @@ export const actions: Actions = {
       })
     }
 
-    if (stripeSecretKey && !stripeSecretKey.startsWith(environment === 'test' ? 'sk_test_' : 'sk_live_')) {
-      return fail(400, {
-        error: `Secret key must start with ${environment === 'test' ? 'sk_test_' : 'sk_live_'}`
-      })
+    if (stripeSecretKey) {
+      const validPrefixes = environment === 'test' ? ['sk_test_', 'rk_test_'] : ['sk_live_', 'rk_live_'];
+      const isValid = validPrefixes.some(prefix => stripeSecretKey.startsWith(prefix));
+      if (!isValid) {
+        return fail(400, {
+          error: `Secret key must start with ${validPrefixes.join(' or ')}`
+        })
+      }
     }
 
     if (stripeWebhookSecret && !stripeWebhookSecret.startsWith('whsec_')) {
@@ -78,12 +82,10 @@ export const actions: Actions = {
       // Get current decrypted values to compare and prevent double encryption
       const currentSettings = await getPaymentSettings();
 
-      // Helper function to check if value should be saved
       const shouldSaveValue = (newValue: string | undefined, currentValue: string | undefined) => {
-        // Only save if we have a non-empty new value that's different from current
         const trimmedNew = (newValue || '').trim();
         const trimmedCurrent = (currentValue || '').trim();
-        return trimmedNew && trimmedNew !== trimmedCurrent;
+        return trimmedNew !== trimmedCurrent;
       };
 
       // Only save settings that have actually changed to prevent double encryption

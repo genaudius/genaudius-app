@@ -55,10 +55,10 @@ export const actions: Actions = {
     const r2BrandingBucketName = data.get('r2BrandingBucketName')?.toString()
     const r2BrandingPublicUrl = data.get('r2BrandingPublicUrl')?.toString()
 
-    // Validation - require all fields including branding bucket
-    if (!r2AccountId || !r2AccessKeyId || !r2SecretAccessKey || !r2BucketName || !r2BrandingBucketName || !r2BrandingPublicUrl) {
+    // Validation - require primary fields
+    if (!r2AccountId || !r2AccessKeyId || !r2SecretAccessKey || !r2BucketName) {
       return fail(400, {
-        error: 'All fields are required: Account ID, Access Key ID, Secret Access Key, Bucket Name, Branding Bucket Name, and Branding Public URL'
+        error: 'The following fields are required: Account ID, Access Key ID, Secret Access Key, and Bucket Name'
       })
     }
 
@@ -66,12 +66,10 @@ export const actions: Actions = {
       // Get current values to compare and only save changed settings
       const currentSettings = await getCloudStorageSettings();
 
-      // Helper function to check if value should be saved
       const shouldSaveValue = (newValue: string | undefined, currentValue: string | undefined) => {
-        // Only save if we have a non-empty new value that's different from current
         const trimmedNew = (newValue || '').trim();
         const trimmedCurrent = (currentValue || '').trim();
-        return trimmedNew && trimmedNew !== trimmedCurrent;
+        return trimmedNew !== trimmedCurrent;
       };
 
       // Only save settings that have actually changed

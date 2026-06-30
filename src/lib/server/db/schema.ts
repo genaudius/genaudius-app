@@ -30,7 +30,7 @@ export const users = pgTable("user", {
 		enum: ["active", "canceled", "incomplete", "incomplete_expired", "past_due", "trialing", "unpaid"] 
 	}).default("incomplete"),
 	planTier: text("planTier", { 
-		enum: ["free", "starter", "pro", "advanced"] 
+		enum: ["free", "plus", "pro"] 
 	}).default("free"),
 	marketingConsent: boolean("marketingConsent").notNull().default(false),
 	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
@@ -393,7 +393,7 @@ export const pricingPlans = pgTable("pricing_plan", {
 		.$defaultFn(() => randomUUID()),
 	name: text("name").notNull(),
 	tier: text("tier", { 
-		enum: ["free", "starter", "pro", "advanced"] 
+		enum: ["free", "plus", "pro"] 
 	}).notNull(),
 	stripePriceId: text("stripePriceId").notNull().unique(),
 	priceAmount: integer("priceAmount").notNull(), // Price in cents
@@ -401,10 +401,7 @@ export const pricingPlans = pgTable("pricing_plan", {
 	billingInterval: text("billingInterval", { 
 		enum: ["month", "year"] 
 	}).notNull().default("month"),
-	textGenerationLimit: integer("textGenerationLimit"), // null = unlimited
-	imageGenerationLimit: integer("imageGenerationLimit"), // null = unlimited
-	videoGenerationLimit: integer("videoGenerationLimit"), // null = unlimited
-	audioGenerationLimit: integer("audioGenerationLimit"), // null = unlimited
+	creditLimit: integer("creditLimit"), // null = unlimited
 	features: json("features").$type<string[]>().notNull().default([]),
 	isActive: boolean("isActive").notNull().default(true),
 	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
@@ -421,10 +418,10 @@ export const subscriptions = pgTable("subscription", {
 	stripeSubscriptionId: text("stripeSubscriptionId").notNull().unique(),
 	stripePriceId: text("stripePriceId").notNull(),
 	planTier: text("planTier", { 
-		enum: ["free", "starter", "pro", "advanced"] 
+		enum: ["free", "plus", "pro"] 
 	}).notNull(),
 	previousPlanTier: text("previousPlanTier", { 
-		enum: ["free", "starter", "pro", "advanced"] 
+		enum: ["free", "plus", "pro"] 
 	}), // Track previous plan for plan change analytics
 	status: text("status", { 
 		enum: ["active", "canceled", "incomplete", "incomplete_expired", "past_due", "trialing", "unpaid"] 
@@ -448,10 +445,7 @@ export const usageTracking = pgTable("usage_tracking", {
 		.references(() => users.id, { onDelete: "cascade" }),
 	month: integer("month").notNull(), // 1-12
 	year: integer("year").notNull(),
-	textGenerationCount: integer("textGenerationCount").notNull().default(0),
-	imageGenerationCount: integer("imageGenerationCount").notNull().default(0),
-	videoGenerationCount: integer("videoGenerationCount").notNull().default(0),
-	audioGenerationCount: integer("audioGenerationCount").notNull().default(0),
+	creditsUsed: integer("creditsUsed").notNull().default(0),
 	lastResetAt: timestamp("lastResetAt", { mode: "date" }).notNull().defaultNow(),
 	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 	updatedAt: timestamp("updatedAt", { mode: "date" }).notNull().defaultNow(),

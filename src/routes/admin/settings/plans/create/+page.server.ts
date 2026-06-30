@@ -26,10 +26,7 @@ export const actions: Actions = {
     const priceAmount = data.get('priceAmount')?.toString()
     const currency = data.get('currency')?.toString() || 'usd'
     const billingInterval = data.get('billingInterval')?.toString()
-    const textGenerationLimit = data.get('textGenerationLimit')?.toString()
-    const imageGenerationLimit = data.get('imageGenerationLimit')?.toString()
-    const videoGenerationLimit = data.get('videoGenerationLimit')?.toString()
-    const audioGenerationLimit = data.get('audioGenerationLimit')?.toString()
+    const creditLimit = data.get('creditLimit')?.toString()
     const features = data.get('features')?.toString()
 
     // Validation
@@ -42,15 +39,12 @@ export const actions: Actions = {
         priceAmount,
         currency,
         billingInterval,
-        textGenerationLimit,
-        imageGenerationLimit,
-        videoGenerationLimit,
-        audioGenerationLimit,
+        creditLimit,
         features
       })
     }
 
-    if (!['free', 'starter', 'pro', 'advanced'].includes(tier)) {
+    if (!['free', 'plus', 'pro'].includes(tier)) {
       return fail(400, {
         error: 'Invalid tier selected',
         name,
@@ -59,10 +53,7 @@ export const actions: Actions = {
         priceAmount,
         currency,
         billingInterval,
-        textGenerationLimit,
-        imageGenerationLimit,
-        videoGenerationLimit,
-        audioGenerationLimit,
+        creditLimit,
         features
       })
     }
@@ -76,10 +67,7 @@ export const actions: Actions = {
         priceAmount,
         currency,
         billingInterval,
-        textGenerationLimit,
-        imageGenerationLimit,
-        videoGenerationLimit,
-        audioGenerationLimit,
+        creditLimit,
         features
       })
     }
@@ -94,20 +82,14 @@ export const actions: Actions = {
         priceAmount,
         currency,
         billingInterval,
-        textGenerationLimit,
-        imageGenerationLimit,
-        videoGenerationLimit,
-        audioGenerationLimit,
+        creditLimit,
         features
       })
     }
 
     try {
       // Parse limits (null for unlimited, 0 for no access)
-      const textLimit = textGenerationLimit === '' || textGenerationLimit === undefined || textGenerationLimit === null ? null : parseInt(textGenerationLimit)
-      const imageLimit = imageGenerationLimit === '' || imageGenerationLimit === undefined || imageGenerationLimit === null ? null : parseInt(imageGenerationLimit)
-      const videoLimit = videoGenerationLimit === '' || videoGenerationLimit === undefined || videoGenerationLimit === null ? null : parseInt(videoGenerationLimit)
-      const audioLimit = audioGenerationLimit === '' || audioGenerationLimit === undefined || audioGenerationLimit === null ? null : parseInt(audioGenerationLimit)
+      const parsedCreditLimit = creditLimit === '' || creditLimit === undefined || creditLimit === null ? null : parseInt(creditLimit)
 
       // Parse features array
       let featuresArray: string[] = []
@@ -122,15 +104,12 @@ export const actions: Actions = {
       // Create the plan
       await db.insert(pricingPlans).values({
         name,
-        tier: tier as 'free' | 'starter' | 'pro' | 'advanced',
+        tier: tier as 'free' | 'plus' | 'pro',
         stripePriceId,
         priceAmount: priceAmountNum,
         currency,
         billingInterval: billingInterval as 'month' | 'year',
-        textGenerationLimit: textLimit !== null && !isNaN(textLimit) ? textLimit : null,
-        imageGenerationLimit: imageLimit !== null && !isNaN(imageLimit) ? imageLimit : null,
-        videoGenerationLimit: videoLimit !== null && !isNaN(videoLimit) ? videoLimit : null,
-        audioGenerationLimit: audioLimit !== null && !isNaN(audioLimit) ? audioLimit : null,
+        creditLimit: parsedCreditLimit !== null && !isNaN(parsedCreditLimit) ? parsedCreditLimit : null,
         features: featuresArray,
         isActive: true
       })
@@ -151,10 +130,7 @@ export const actions: Actions = {
         priceAmount,
         currency,
         billingInterval,
-        textGenerationLimit,
-        imageGenerationLimit,
-        videoGenerationLimit,
-        audioGenerationLimit,
+        creditLimit,
         features
       })
     }
