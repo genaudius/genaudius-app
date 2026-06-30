@@ -223,6 +223,7 @@
 	let hookEnabled = $state(false);
 	let hookText = $state('');
 	let hookTimingHint = $state('');
+	let hookStartTimeSec = $state(0);
 	let detectingHook = $state(false);
 	let hookAiDetected = $state(false);
 
@@ -245,7 +246,12 @@
 					body: JSON.stringify({ title: track.title, tags: track.tags, prompt: track.prompt, isInstrumental: track.isInstrumental }),
 				});
 				const json = await res.json();
-				if (res.ok && json.hook) { hookText = json.hook; hookTimingHint = json.timingHint ?? ''; hookAiDetected = true; }
+				if (res.ok && json.hook) { 
+					hookText = json.hook; 
+					hookTimingHint = json.timingHint ?? ''; 
+					hookStartTimeSec = json.predictedStartTimeSec ?? 0;
+					hookAiDetected = true; 
+				}
 			} catch { /* silent */ } finally { detectingHook = false; }
 		} else if (!hookEnabled) { hookAiDetected = false; hookTimingHint = ''; }
 	}
@@ -257,6 +263,7 @@
 			platform,
 			durationSec: configDurSec,
 			hookText: hookEnabled && hookText.trim() ? hookText.trim() : undefined,
+			hookStartTimeSec: hookEnabled ? hookStartTimeSec : 0,
 		};
 		const res = await fetch('/api/video-projects', {
 			method: 'POST',
@@ -553,11 +560,25 @@
 					</div>
 					{#if hookEnabled}
 						<div class="relative">
+							<p class="text-xs font-semibold mb-1" style="color:var(--ga-text);">Hook Phrase / Idea</p>
 							<input type="text" placeholder='e.g. "I will never forget you"' bind:value={hookText}
-								class="w-full px-4 py-2.5 rounded-lg text-sm outline-none"
+								class="w-full px-4 py-2.5 rounded-lg text-sm outline-none mb-3"
 								style="background:rgba(255,255,255,0.05);border:1px solid {hookAiDetected?'rgba(214,200,6,0.4)':'rgba(255,255,255,0.1)'};color:var(--ga-text);" />
+							
+							<div class="flex items-center gap-3">
+								<div class="flex-1">
+									<p class="text-xs font-semibold mb-1" style="color:var(--ga-text);">Start Time (seconds)</p>
+									<input type="number" min="0" placeholder="0" bind:value={hookStartTimeSec}
+										class="w-full px-4 py-2.5 rounded-lg text-sm outline-none"
+										style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--ga-text);" />
+								</div>
+								<div class="flex-1">
+									{#if hookTimingHint}
+										<p class="text-xs mt-6" style="color:var(--ga-gold);">◎ {hookTimingHint}</p>
+									{/if}
+								</div>
+							</div>
 						</div>
-						{#if hookTimingHint}<p class="text-xs" style="color:var(--ga-gold);">◎ {hookTimingHint}</p>{/if}
 					{:else}
 						<p class="text-xs" style="color:var(--ga-muted);">AI will detect the catchiest moment and center the video around it.</p>
 					{/if}

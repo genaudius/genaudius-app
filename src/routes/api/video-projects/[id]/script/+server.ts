@@ -30,10 +30,11 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 
 	if (!project) return json({ error: 'Project not found' }, { status: 404 });
 
-	const cfg = project.config as { platform?: string; durationSec?: number; hookText?: string } | null;
+	const cfg = project.config as { platform?: string; durationSec?: number; hookText?: string; hookStartTimeSec?: number } | null;
 	const durationSec = cfg?.durationSec ?? 30;
 	const platform = cfg?.platform ?? 'reels';
 	const hookText = cfg?.hookText;
+	const hookStartTimeSec = cfg?.hookStartTimeSec ?? 0;
 	const numScenes = Math.max(3, Math.min(10, Math.round(durationSec / 6)));
 	const secPerScene = Math.round(durationSec / numScenes);
 	const platformDesc = platform === 'reels'
@@ -52,7 +53,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 Your job is to break a song into chronological scenes for AI video generation.
 
 STRICT RULES:
-1. Cover the FULL song from second 0 to second ${durationSec} — no gaps, no overlaps.
+1. Cover the FULL song from second ${hookStartTimeSec} to second ${hookStartTimeSec + durationSec} — no gaps, no overlaps.
 2. Each scene lasts between 4 and 10 seconds. Aim for ~${secPerScene}s per scene.
 3. Classify each scene:
    - "vocals": the artist is actively singing in this time range.
@@ -72,8 +73,8 @@ Return ONLY a JSON array with exactly ${numScenes} objects:
 [
   {
     "index": 0,
-    "startSec": 0,
-    "endSec": ${secPerScene},
+    "startSec": ${hookStartTimeSec},
+    "endSec": ${hookStartTimeSec + secPerScene},
     "type": "instrumental",
     "description": "Director note, 10-15 words",
     "prompt": "AI image generation prompt, 30-50 words, cinematic quality",
@@ -85,7 +86,7 @@ Requirements:
 - Scene 1: strong establishing shot or hook
 - Vary cameraMovement across scenes — no repeats on consecutive scenes
 - Consistent visual style and color palette throughout
-- endSec of LAST scene must equal exactly ${durationSec}
+- endSec of LAST scene must equal exactly ${hookStartTimeSec + durationSec}
 Return ONLY the raw JSON array.`;
 
 	try {
@@ -114,9 +115,9 @@ Return ONLY the raw JSON array.`;
 		const rawParsed: unknown = JSON.parse(jsonStr);
 		const scenes: VideoScene[] = ScenesSchema.parse(rawParsed) as VideoScene[];
 
-		// Ensure endSec of last scene exactly matches durationSec
+		// Ensure endSec of last scene exactly matches durationSec offset
 		if (scenes.length > 0) {
-			scenes[scenes.length - 1].endSec = durationSec;
+			scenes[scenes.length - 1].endSec = hookStartTimeSec + durationSec;
 		}
 
 		await db.update(videoProjects)

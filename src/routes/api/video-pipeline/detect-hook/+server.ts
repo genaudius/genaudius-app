@@ -27,7 +27,8 @@ Instrumental: ${isInstrumental ? 'Yes (no lyrics)' : 'No'}
 Return ONLY this JSON:
 {
   "hook": "The predicted hook phrase or lyrical moment (1 short sentence or fragment, max 8 words)",
-  "timingHint": "Brief note on when this likely appears (e.g., 'chorus', 'opening bars', 'bridge')",
+  "timingHint": "Brief note on when this likely appears (e.g., 'chorus', 'opening bars')",
+  "predictedStartTimeSec": 45,
   "explanation": "One sentence explaining why this is the catchiest moment"
 }
 
