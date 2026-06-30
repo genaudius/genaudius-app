@@ -54,7 +54,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Starter',
 		tier: 'starter',
-		stripePriceId: 'price_starter_monthly',
+		stripePriceId: 'price_1TntsUCb1Op7pdCawsJ9CGi1',
 		priceAmount: 1500, // $15.00
 		currency: 'usd',
 		billingInterval: 'month',
@@ -75,7 +75,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Pro',
 		tier: 'pro',
-		stripePriceId: 'price_pro_monthly',
+		stripePriceId: 'price_1TntsWCb1Op7pdCaLBdaHpWn',
 		priceAmount: 4900, // $49.00
 		currency: 'usd',
 		billingInterval: 'month',
@@ -99,7 +99,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Advanced',
 		tier: 'advanced',
-		stripePriceId: 'price_advanced_monthly',
+		stripePriceId: 'price_1TntsZCb1Op7pdCaLybd8lnR',
 		priceAmount: 14900, // $149.00
 		currency: 'usd',
 		billingInterval: 'month',
@@ -126,7 +126,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Starter',
 		tier: 'starter',
-		stripePriceId: 'price_starter_yearly',
+		stripePriceId: 'price_1TntsVCb1Op7pdCalUSVWrWv',
 		priceAmount: 12600, // $126.00 yearly (normally $180, save $54)
 		currency: 'usd',
 		billingInterval: 'year',
@@ -147,7 +147,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Pro',
 		tier: 'pro',
-		stripePriceId: 'price_pro_yearly',
+		stripePriceId: 'price_1TntsZCb1Op7pdCaT72IBjwv',
 		priceAmount: 41160, // $411.60 yearly (normally $588, save $176.40)
 		currency: 'usd',
 		billingInterval: 'year',
@@ -171,7 +171,7 @@ const pricingPlansData: PricingPlanSeed[] = [
 	{
 		name: 'Advanced',
 		tier: 'advanced',
-		stripePriceId: 'price_advanced_yearly',
+		stripePriceId: 'price_1TntsaCb1Op7pdCaqZPW4Oxy',
 		priceAmount: 125160, // $1,251.60 yearly (normally $1,788, save $536.40)
 		currency: 'usd',
 		billingInterval: 'year',
