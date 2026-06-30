@@ -308,8 +308,8 @@
 			// Skip scenes already done (e.g. on retry)
 			if (scenes[i].imageStatus === 'done' && scenes[i].imageUrl) continue;
 
-			// Rate limit: wait 11s between calls to stay within Replicate free tier (6 req/min)
-			if (i > 0) await new Promise(r => setTimeout(r, 11_000));
+			// Rate limit: wait 16s between calls to stay within Replicate free tier (6 req/min)
+			if (i > 0) await new Promise(r => setTimeout(r, 16_000));
 
 			loadingMsg = `Storyboard: generating image ${i + 1} of ${scenes.length}...`;
 			scenes[i] = { ...scenes[i], imageStatus: 'generating' };
@@ -354,8 +354,8 @@
 			if (scenes[i].imageStatus !== 'done') continue;
 			// Skip clips already done (e.g. on retry)
 			if (clips[i]?.clipStatus === 'done' && clips[i]?.clipUrl) continue;
-			// Delay between calls to avoid Replicate rate limits
-			if (renderCount > 0) await new Promise(r => setTimeout(r, 12_000));
+			// Delay between calls to avoid Replicate rate limits (always wait 16s to be safe)
+			await new Promise(r => setTimeout(r, 16_000));
 			renderCount++;
 			loadingMsg = `Rendering clip ${i + 1} of ${scenes.length}... (1–2 min per scene)`;
 			clips[i] = { ...clips[i], clipStatus: 'generating' };
