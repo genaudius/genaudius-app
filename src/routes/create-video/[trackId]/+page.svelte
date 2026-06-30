@@ -68,7 +68,9 @@
 	function getInactive() { return activeVid === 0 ? videoB : videoA; }
 
 	const doneClips = $derived(clips.filter(c => (c as VideoClip).clipStatus === 'done' && (c as VideoClip).clipUrl));
+	const timelineStartSec = $derived(doneClips.length ? (doneClips[0] as VideoClip).startSec : 0);
 	const totalSec = $derived(doneClips.length ? (doneClips[doneClips.length - 1] as VideoClip).endSec : 0);
+	const timelineDuration = $derived(totalSec - timelineStartSec);
 
 	function getActiveClip(t: number) {
 		for (let i = 0; i < doneClips.length; i++) {
@@ -139,9 +141,9 @@
 		if (atEnd) {
 			// Replay from beginning
 			atEnd = false;
-			masterTime = 0;
+			masterTime = timelineStartSec;
 			currentClipIndex = 0;
-			previewAudioEl.currentTime = 0;
+			previewAudioEl.currentTime = timelineStartSec;
 			const first = doneClips[0] as VideoClip;
 			if (first?.clipUrl) {
 				const active = getActive();
@@ -155,7 +157,7 @@
 	}
 
 	function seekTo(t: number) {
-		const clamped = Math.max(0, Math.min(t, totalSec));
+		const clamped = Math.max(timelineStartSec, Math.min(t, totalSec));
 		atEnd = false;
 		if (previewAudioEl) previewAudioEl.currentTime = clamped;
 		const active = getActiveClip(clamped);
@@ -167,7 +169,14 @@
 		const a = videoA;
 		if (!a || !doneClips.length) return;
 		const first = doneClips[0] as VideoClip;
-		if (!a.src && first.clipUrl) { a.src = first.clipUrl; a.load(); }
+		if (!a.src && first.clipUrl) { 
+			a.src = first.clipUrl; 
+			a.load(); 
+			if (previewAudioEl && previewAudioEl.currentTime < first.startSec) {
+				previewAudioEl.currentTime = first.startSec;
+				masterTime = first.startSec;
+			}
+		}
 	});
 
 	// ── AI Scene Editor ────────────────────────────────────────────────────────
@@ -213,7 +222,7 @@
 	function onTimelineClick(e: MouseEvent) {
 		if (!timelineEl) return;
 		const rect = timelineEl.getBoundingClientRect();
-		seekTo(((e.clientX - rect.left) / rect.width) * totalSec);
+		seekTo(timelineStartSec + ((e.clientX - rect.left) / rect.width) * timelineDuration);
 	}
 
 	// ── Config step state ──────────────────────────────────────────────────────
@@ -867,12 +876,12 @@
 								style="background:rgba(255,255,255,0.1);"
 								onclick={(e) => {
 									const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
-									seekTo(((e.clientX - r.left) / r.width) * totalSec);
+									seekTo(timelineStartSec + ((e.clientX - r.left) / r.width) * timelineDuration);
 								}}
 							>
 								<div
 									class="absolute inset-y-0 left-0 rounded-full"
-									style="width:{totalSec ? (masterTime / totalSec) * 100 : 0}%;background:var(--ga-gold);"
+									style="width:{timelineDuration ? Math.max(0, (masterTime - timelineStartSec) / timelineDuration) * 100 : 0}%;background:var(--ga-gold);"
 								></div>
 							</div>
 
@@ -907,7 +916,7 @@
 						<div class="flex justify-between mb-1 px-0">
 							{#each Array.from({length: 6}) as _, ti}
 								<span class="text-[9px] font-mono" style="color:var(--ga-muted);">
-									{formatSec((ti / 5) * totalSec)}
+									{formatSec(timelineStartSec + (ti / 5) * timelineDuration)}
 								</span>
 							{/each}
 						</div>
@@ -921,7 +930,7 @@
 							<!-- Played progress -->
 							<div
 								class="absolute inset-y-0 left-0 pointer-events-none"
-								style="width:{totalSec ? (masterTime / totalSec) * 100 : 0}%;background:rgba(214,200,6,0.15);"
+								style="width:{timelineDuration ? Math.max(0, (masterTime - timelineStartSec) / timelineDuration) * 100 : 0}%;background:rgba(214,200,6,0.15);"
 							></div>
 						</div>
 
@@ -930,8 +939,8 @@
 							{#each doneClips as clip, i}
 								{@const c = clip as VideoClip}
 								{@const isVocal = c.type === 'vocals'}
-								{@const leftPct = totalSec ? (c.startSec / totalSec) * 100 : 0}
-								{@const widthPct = totalSec ? ((c.endSec - c.startSec) / totalSec) * 100 : 0}
+								{@const leftPct = timelineDuration ? ((c.startSec - timelineStartSec) / timelineDuration) * 100 : 0}
+								{@const widthPct = timelineDuration ? ((c.endSec - c.startSec) / timelineDuration) * 100 : 0}
 								{@const isActive = i === currentClipIndex}
 								<div
 									class="absolute top-0 bottom-0 overflow-hidden rounded cursor-pointer"
@@ -966,10 +975,10 @@
 						</div>
 
 						<!-- Playhead needle -->
-						{#if totalSec > 0}
+						{#if timelineDuration > 0}
 							<div
 								class="absolute top-4 bottom-0 w-px pointer-events-none"
-								style="left:{(masterTime / totalSec) * 100}%;background:var(--ga-pink);box-shadow:0 0 4px var(--ga-pink);"
+								style="left:{Math.max(0, (masterTime - timelineStartSec) / timelineDuration) * 100}%;background:var(--ga-pink);box-shadow:0 0 4px var(--ga-pink);"
 							>
 								<!-- Needle head -->
 								<div class="absolute -top-1 left-1/2 -translate-x-1/2 w-2 h-2 rounded-full" style="background:var(--ga-pink);"></div>
