@@ -438,7 +438,7 @@ export async function saveVoiceChangeAndGetId(
  * @returns Database ID of the created music record
  */
 export async function saveMusicAndGetId(
-	audioData: string,
+	audioData: string | Buffer,
 	mimeType: string,
 	userId: string,
 	prompt: string,
@@ -452,8 +452,8 @@ export async function saveMusicAndGetId(
 	const extension = mimeType.split('/')[1] || 'mp3';
 	const filename = storageService.generateFilename(`file.${extension}`);
 
-	// Convert base64 to buffer
-	const audioBuffer = Buffer.from(audioData, 'base64');
+	// Convert base64 to buffer if needed
+	const audioBuffer = Buffer.isBuffer(audioData) ? audioData : Buffer.from(audioData, 'base64');
 
 	// Upload to storage (R2 or local)
 	const storageResult = await storageService.upload(

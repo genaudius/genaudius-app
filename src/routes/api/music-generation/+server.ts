@@ -125,10 +125,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 						// Not saved by frontend, save it in the background
 						const audioRes = await fetch(track.audioUrl);
 						if (audioRes.ok) {
-							const audioData = Buffer.from(await audioRes.arrayBuffer()).toString('base64');
+							const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
 							const durationMs = Math.round((track.duration || 0) * 1000);
 							await saveMusicAndGetId(
-								audioData,
+								audioBuffer,
 								'audio/mpeg',
 								userId,
 								titleToCheck,
@@ -196,11 +196,11 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 			const audioRes = await fetch(result.track.audioUrl);
 			if (!audioRes.ok) throw new Error(`Failed to download audio: ${audioRes.status}`);
 			const arrayBuffer = await audioRes.arrayBuffer();
-			const audioData = Buffer.from(arrayBuffer).toString('base64');
+			const audioBuffer = Buffer.from(arrayBuffer);
 			const durationMs = Math.round((result.track.duration || 0) * 1000);
 
 			const musicId = await saveMusicAndGetId(
-				audioData,
+				audioBuffer,
 				'audio/mpeg',
 				session.user.id,
 				result.track.title || taskId,
@@ -216,12 +216,11 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 
 			return json({
 				status: 'done',
-				audioData,
+				audioUrl: `/api/music/${musicId}`,
 				mimeType: 'audio/mpeg',
+				title: result.track.title || taskId,
 				durationMs,
-				audioUrl: result.track.audioUrl,
 				coverUrl: result.track.imageUrl,
-				title: result.track.title,
 				tags: result.track.tags,
 				musicId,
 			});
