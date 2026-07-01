@@ -17,8 +17,7 @@
     UpgradeIcon,
     GemIcon,
     HistoryIcon,
-    WalletIcon,
-    ZapIcon,
+    WalletIcon
   } from "$lib/icons/index.js";
   import { TOPUP_PACKAGES } from "$lib/config/topups.js";
 
