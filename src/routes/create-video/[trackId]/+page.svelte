@@ -384,9 +384,14 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({ sceneIndex: i }),
 				});
-				const d = await res.json() as { clipUrl?: string; allDone?: boolean; error?: string };
+				const d = await res.json() as { clipUrl?: string; pending?: boolean; taskId?: string; allDone?: boolean; error?: string };
 				if (!res.ok || d.error) throw new Error(d.error || 'Render failed');
-				clips[i] = { ...clips[i], clipStatus: 'done', clipUrl: d.clipUrl };
+				
+				if (d.pending) {
+					clips[i] = { ...clips[i], clipStatus: 'generating', taskId: d.taskId };
+				} else {
+					clips[i] = { ...clips[i], clipStatus: 'done', clipUrl: d.clipUrl };
+				}
 				clips = [...clips];
 			} catch (e) {
 				clips[i] = { ...clips[i], clipStatus: 'error' };
@@ -893,8 +898,13 @@
 					{:else}
 						<div class="flex items-center justify-center" style="height:240px;">
 							<div class="text-center" style="color:var(--ga-muted);">
-								<div class="text-5xl mb-3">🎬</div>
-								<p class="text-sm">Render clips to see the preview</p>
+								{#if clips.some(c => (c as VideoClip).clipStatus === 'generating')}
+									<div class="w-8 h-8 border-4 rounded-full border-t-transparent animate-spin mx-auto mb-4" style="border-color:var(--ga-purple);"></div>
+									<p class="text-sm font-bold" style="color:var(--ga-purple);">Generando clips (esto puede tardar unos minutos)...</p>
+								{:else}
+									<div class="text-5xl mb-3">🎬</div>
+									<p class="text-sm">Render clips to see the preview</p>
+								{/if}
 							</div>
 						</div>
 					{/if}
