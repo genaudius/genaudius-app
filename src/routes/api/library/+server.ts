@@ -502,6 +502,7 @@ export const GET: RequestHandler = async ({ url, locals }) => {
 					chatId: music.chatId,
 					chatTitle: chats.title,
 					chatModel: chats.model,
+					coverUrl: music.coverUrl,
 				})
 				.from(music)
 				.leftJoin(chats, eq(music.chatId, chats.id))

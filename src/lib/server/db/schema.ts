@@ -290,6 +290,7 @@ export const music = pgTable("music", {
 	isInstrumental: boolean("isInstrumental").notNull().default(false), // Whether music is instrumental only
 	storageLocation: text("storageLocation").notNull().default("local"), // 'local' | 'r2'
 	cloudPath: text("cloudPath"), // Path/key for cloud storage (null for local files)
+	coverUrl: text("coverUrl"), // Cover image URL for generated music (e.g., from Suno)
 	createdAt: timestamp("createdAt", { mode: "date" }).notNull().defaultNow(),
 }, (table) => [
 	// Composite index for library queries (order by createdAt DESC for user)

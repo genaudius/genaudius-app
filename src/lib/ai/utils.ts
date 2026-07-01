@@ -445,7 +445,8 @@ export async function saveMusicAndGetId(
 	model: string,
 	durationMs: number,
 	isInstrumental: boolean,
-	chatId?: string
+	chatId?: string,
+	coverUrl?: string
 ): Promise<string> {
 	// Generate unique filename
 	const extension = mimeType.split('/')[1] || 'mp3';
@@ -482,7 +483,8 @@ export async function saveMusicAndGetId(
 				model,
 				isInstrumental,
 				storageLocation: storageResult.storageLocation,
-				cloudPath: storageResult.path
+				cloudPath: storageResult.path,
+				coverUrl: coverUrl || null
 			})
 			.returning();
 

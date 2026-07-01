@@ -134,7 +134,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 								titleToCheck,
 								'suno',
 								durationMs,
-								false
+								false,
+								undefined,
+								track.imageUrl
 							);
 						}
 					}
@@ -204,7 +206,9 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 				result.track.title || taskId,
 				'suno',
 				durationMs,
-				false
+				false,
+				undefined,
+				result.track.imageUrl
 			);
 
 			const cost = UsageTrackingService.calculateCost('music');
