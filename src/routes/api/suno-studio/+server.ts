@@ -34,45 +34,52 @@ async function getApiKey(): Promise<string> {
 	return (env as Record<string, string>)['SUNO_API_KEY'] || '';
 }
 
-async function pollStudio(
-	statusPath: string,
-	responseKey: string,
-	taskId: string,
-	apiKey: string,
-	maxWaitMs = 600_000
-): Promise<unknown> {
-	const deadline = Date.now() + maxWaitMs;
+export const GET: RequestHandler = async ({ locals, url }) => {
+	try {
+		const session = await locals.auth();
+		if (!session?.user?.id) return json({ error: 'Authentication required' }, { status: 401 });
 
-	while (Date.now() < deadline) {
+		const apiKey = await getApiKey();
+		if (!apiKey) return json({ error: 'Suno API key not configured' }, { status: 400 });
+
+		const action = url.searchParams.get('action');
+		const taskId = url.searchParams.get('taskId');
+
+		if (!action || !ACTION_MAP[action]) {
+			return json({ error: `Unknown action: ${action}` }, { status: 400 });
+		}
+		if (!taskId) {
+			return json({ error: 'taskId is required' }, { status: 400 });
+		}
+
+		const { statusPath, responseKey } = ACTION_MAP[action];
+
 		const res = await fetch(`${SUNO_API_BASE}/${statusPath}?taskId=${taskId}`, {
 			headers: { Authorization: `Bearer ${apiKey}` }
 		});
 
 		if (!res.ok) throw new Error(`Suno status failed: ${res.status}`);
 
-		const json = (await res.json()) as {
+		const jsonResp = (await res.json()) as {
 			data: { status: string; errorMessage?: string; response?: Record<string, unknown> }
 		};
-		const { data } = json;
+		const { data } = jsonResp;
 
-		switch (data.status) {
-			case 'SUCCESS':
-			case 'FIRST_SUCCESS': {
-				const result = data.response?.[responseKey];
-				if (!result) throw new Error('Suno returned no result data');
-				return result;
-			}
-			case 'CREATE_TASK_FAILED':
-			case 'GENERATE_AUDIO_FAILED':
-			case 'CALLBACK_EXCEPTION':
-			case 'SENSITIVE_WORD_ERROR':
-				throw new Error(data.errorMessage || `Suno studio failed: ${data.status}`);
-			default:
-				await new Promise((r) => setTimeout(r, 10_000));
+		if (data.status === 'SUCCESS' || data.status === 'FIRST_SUCCESS') {
+			return json({ status: 'SUCCESS', result: data.response?.[responseKey] });
+		} else if (['CREATE_TASK_FAILED', 'GENERATE_AUDIO_FAILED', 'CALLBACK_EXCEPTION', 'SENSITIVE_WORD_ERROR'].includes(data.status)) {
+			return json({ status: 'FAILED', errorMessage: data.errorMessage || `Suno studio failed: ${data.status}` });
 		}
+
+		return json({ status: data.status });
+	} catch (error) {
+		console.error('Suno studio GET error:', error);
+		return json(
+			{ error: error instanceof Error ? error.message : 'Internal server error' },
+			{ status: 500 }
+		);
 	}
-	throw new Error('Suno studio operation timed out after 10 minutes');
-}
+};
 
 // POST /api/suno-studio — Submit a studio action and wait for result
 export const POST: RequestHandler = async ({ request, locals, url }) => {
@@ -120,10 +127,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 		const taskId = submitJson.data.taskId;
 
-		// Poll until done
-		const result = await pollStudio(statusPath, responseKey, taskId, apiKey);
-
-		return json({ success: true, action, taskId, result });
+		return json({ success: true, action, taskId });
 	} catch (error) {
 		console.error('Suno studio error:', error);
 		return json(

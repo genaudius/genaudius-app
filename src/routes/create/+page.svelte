@@ -313,8 +313,28 @@
 			});
 			const json = await res.json();
 			if (!res.ok) { toast.error(json.error || 'Studio operation failed'); return; }
-			studioResult = json.result;
-			toast.success(`${studioMode} completed!`);
+
+			const taskId = json.taskId;
+			
+			// Poll until done
+			while (isGenerating) {
+				await new Promise(r => setTimeout(r, 10000));
+				
+				const statusRes = await fetch(`/api/suno-studio?action=${studioMode}&taskId=${taskId}`);
+				const statusJson = await statusRes.json();
+				
+				if (!statusRes.ok) {
+					throw new Error(statusJson.error || 'Failed to check status');
+				}
+				
+				if (statusJson.status === 'SUCCESS') {
+					studioResult = statusJson.result;
+					toast.success(`${studioMode} completed!`);
+					break;
+				} else if (statusJson.status === 'FAILED') {
+					throw new Error(statusJson.errorMessage || 'Studio generation failed');
+				}
+			}
 		} catch (err) {
 			toast.error(err instanceof Error ? err.message : 'Studio operation failed');
 		} finally {
