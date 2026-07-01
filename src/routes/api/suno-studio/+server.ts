@@ -17,7 +17,7 @@ const ACTION_MAP: Record<string, { createPath: string; statusPath: string; respo
 	'vocal-remove':       { createPath: 'vocal-remove',       statusPath: 'vocal-remove/record-info',       responseKey: 'musicData' },
 	'midi':               { createPath: 'midi',               statusPath: 'midi/record-info',               responseKey: 'midiData' },
 	'persona':            { createPath: 'persona',            statusPath: 'persona/record-info',            responseKey: 'personaData' },
-	'music-video':        { createPath: 'music-video',        statusPath: 'music-video/record-info',        responseKey: 'videoData' },
+	'music-video':        { createPath: 'mp4/generate',        statusPath: 'mp4/record-info',        responseKey: 'videoData' },
 	'wav':                { createPath: 'wav',                statusPath: 'wav/record-info',                responseKey: 'wavData' },
 	'lyrics':             { createPath: 'lyrics/generate',    statusPath: 'lyrics/record-info',             responseKey: 'lyricsData' },
 	'timestamped-lyrics': { createPath: 'timestamped-lyrics', statusPath: 'timestamped-lyrics/record-info', responseKey: 'lyricsData' },
@@ -92,6 +92,14 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 		const body = await request.json();
 		const { action, ...params } = body;
+
+		if (action === 'music-video' && params.audioUrl) {
+			const match = params.audioUrl.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
+			if (match) {
+				params.taskId = match[0];
+				params.audioId = match[0];
+			}
+		}
 
 		if (!action || !ACTION_MAP[action]) {
 			return json({ error: `Unknown action: ${action}. Valid: ${Object.keys(ACTION_MAP).join(', ')}` }, { status: 400 });
