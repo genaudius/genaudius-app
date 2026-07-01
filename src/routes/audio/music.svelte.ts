@@ -9,6 +9,7 @@ const SUNO_MUSIC_MODELS = [
   { id: 'suno-v4.5-all', name: 'Suno V4.5 All' },
   { id: 'suno-v5', name: 'Suno V5' },
   { id: 'suno-v5.5', name: 'Suno V5.5' },
+  { id: 'suno-v7.5', name: 'Suno V7.5' },
 ] as const;
 
 const ALL_MUSIC_MODELS = [
@@ -42,7 +43,7 @@ export class MusicState {
   readonly models = ALL_MUSIC_MODELS;
 
   // Model Selection
-  selectedModel = $state<string>("music_v1");
+  selectedModel = $state<string>("suno-v7.5");
 
   // Input Settings
   inputPrompt = $state<string>("");
