@@ -211,14 +211,22 @@
 
 	// ─── Studio modes ─────────────────────────────────────────────────────────────
 	const STUDIO_MODES = [
-		{ id: 'extend',           label: 'Extend',          icon: '⬆️', desc: 'Extend an existing track' },
-		{ id: 'vocal-remove',     label: 'Stem Separate',   icon: '🎚️', desc: 'Extract vocals/instrumentals' },
-		{ id: 'add-vocals',       label: 'Add Vocals',      icon: '🎤', desc: 'Add vocals to instrumental' },
-		{ id: 'add-instrumental', label: 'Add Instrumental',icon: '🎸', desc: 'Add music bed to vocals' },
-		{ id: 'mashup',           label: 'Mashup',          icon: '🎭', desc: 'Blend two tracks together' },
-		{ id: 'lyrics',           label: 'Generate Lyrics', icon: '📝', desc: 'AI-written lyrics' },
-		{ id: 'music-video',      label: 'Music Video',     icon: '🎬', desc: 'Auto-generate a video' },
-		{ id: 'wav',              label: 'WAV Convert',     icon: '💿', desc: 'Convert to lossless WAV' },
+		{ id: 'extend',           label: 'Extend',               icon: '⬆️', desc: 'Extend an existing track' },
+		{ id: 'upload-cover',     label: 'Cover Generate',       icon: '🔄', desc: 'Cover an uploaded audio' },
+		{ id: 'vocal-remove',     label: 'Stem Separate',        icon: '🎚️', desc: 'Extract vocals/instrumentals' },
+		{ id: 'add-vocals',       label: 'Add Vocals',           icon: '🎤', desc: 'Add vocals to instrumental' },
+		{ id: 'add-instrumental', label: 'Add Instrumental',     icon: '🎸', desc: 'Add music bed to vocals' },
+		{ id: 'mashup',           label: 'Mashup',               icon: '🎭', desc: 'Blend two tracks together' },
+		{ id: 'replace-section',  label: 'Replace Section',      icon: '✂️', desc: 'Replace a section of the track' },
+		{ id: 'style-boost',      label: 'Boost Music Style',    icon: '🚀', desc: 'Enhance the track style' },
+		{ id: 'midi',             label: 'Generate Midi',        icon: '🎹', desc: 'Extract MIDI from audio' },
+		{ id: 'lyrics',           label: 'Generate Lyrics',      icon: '📝', desc: 'AI-written lyrics' },
+		{ id: 'timestamped-lyrics',label: 'TimeStamped Lyrics',  icon: '⏱️', desc: 'Lyrics with timestamps' },
+		{ id: 'persona',          label: 'Generate Persona',     icon: '👤', desc: 'Generate a voice persona' },
+		{ id: 'generate-voice',   label: 'Generate Voice',       icon: '🗣️', desc: 'Synthesize a voice' },
+		{ id: 'sounds',           label: 'Sounds',               icon: '🔊', desc: 'Generate sounds/FX' },
+		{ id: 'music-video',      label: 'Music Video',          icon: '🎬', desc: 'Auto-generate a video' },
+		{ id: 'wav',              label: 'WAV Convert',          icon: '💿', desc: 'Convert to lossless WAV' },
 	] as const;
 
 	// ─── Generate music ────────────────────────────────────────────────────────────
@@ -487,14 +495,17 @@
 		goto(`/create-video/${track.id}`);
 	}
 
-	async function extractStems(track: TrackEntry) {
-		if (!track.audioUrl) return;
-		// Pre-fill Studio tab with this track URL and switch
-		studioAudioUrl = track.audioUrl;
-		studioMode = 'vocal-remove';
+	async function quickStudioAction(track: TrackEntry, mode: any, label: string) {
+		if (track.audioUrl) {
+			studioAudioUrl = track.audioUrl;
+		}
+		studioAudioSource = 'library';
+		studioSelectedTrackId = track.id;
+		studioMode = mode;
 		activeTab = 'studio';
 		closeMenu();
-		toast.info('Switched to Soundtrack → Stem Separation with your track');
+		window.scrollTo({ top: 0, behavior: 'smooth' });
+		toast.info(`Switched to Soundtrack → ${label} with your track`);
 	}
 
 	async function saveTitle(track: TrackEntry) {
@@ -1132,12 +1143,26 @@
 												{/if}
 											</button>
 											<div style="border-top:1px solid var(--ga-border);margin:4px 0;"></div>
+											
+											<!-- Studio Quick Actions -->
+											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { quickStudioAction(track, 'extend', 'Extend'); }}>
+												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12l7-7 7 7"/></svg> Extend
+											</button>
+											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { quickStudioAction(track, 'vocal-remove', 'Stem Separation'); }}>
+												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Extraer stems
+											</button>
+											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { quickStudioAction(track, 'style-boost', 'Boost Style'); }}>
+												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Boost Style
+											</button>
+											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { quickStudioAction(track, 'midi', 'Generate Midi'); }}>
+												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg> Generate Midi
+											</button>
+											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { quickStudioAction(track, 'wav', 'WAV Convert'); }}>
+												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg> Convert to WAV
+											</button>
 											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { createVideo(track); closeMenu(); }} disabled={track.isCreatingVideo}>
 												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
 												{track.isCreatingVideo ? 'Creando video...' : 'Crear video'}
-											</button>
-											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { extractStems(track); closeMenu(); }}>
-												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg> Extraer stems
 											</button>
 											<button class="w-full px-4 py-2 text-left text-xs flex items-center gap-3 hover:bg-white/5" onclick={() => { if (track.audioUrl) { studioAudioUrl = track.audioUrl; } activeTab = 'studio'; closeMenu(); }}>
 												<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Abrir en Studio
