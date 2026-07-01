@@ -94,7 +94,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 		const { action, ...params } = body;
 		let finalAction = action;
 
-		if (params.audioUrl) {
+		if (params.audioUrl && !params.taskId && !params.audioId) {
 			const match = params.audioUrl.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
 			if (match) {
 				params.taskId = match[0];
@@ -104,6 +104,9 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 				// For 'extend', kie.ai uses 'upload-extend'
 				if (action === 'extend') {
 					finalAction = 'upload-extend';
+				} else if (action !== 'upload-extend' && action !== 'upload-cover') {
+					// Other actions strictly require a taskId
+					return json({ error: `Suno API requires a native Suno track for ${action}. Uploaded files are only supported for Extend.` }, { status: 400 });
 				}
 			}
 		}

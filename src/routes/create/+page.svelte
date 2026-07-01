@@ -346,10 +346,21 @@
 		isGenerating = true;
 		studioResult = null;
 		try {
+			const payload: Record<string, any> = { action: studioMode, audioUrl: studioAudioUrl.trim(), prompt: studioPrompt.trim() || undefined, instrumental: studioInstrumental };
+			
+			// If using library, explicitly pass the real Suno task ID to avoid regex mismatch or local blob UUIDs
+			if (studioAudioSource === 'library' && studioSelectedTrackId) {
+				const t = tracks.find(x => x.id === studioSelectedTrackId);
+				if (t?.musicId) {
+					payload.audioId = t.musicId;
+					payload.taskId = t.musicId;
+				}
+			}
+
 			const res = await fetch('/api/suno-studio', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: studioMode, audioUrl: studioAudioUrl.trim(), prompt: studioPrompt.trim() || undefined, instrumental: studioInstrumental }),
+				body: JSON.stringify(payload),
 			});
 			const json = await res.json();
 			if (!res.ok) { toast.error(json.error || 'Studio operation failed'); return; }
