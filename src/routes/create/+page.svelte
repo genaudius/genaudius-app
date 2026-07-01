@@ -48,6 +48,36 @@
 	let studioAudioUrl = $state('');
 	let studioPrompt = $state('');
 	let studioInstrumental = $state(false);
+	
+	type StudioAudioSource = 'library' | 'upload' | 'url';
+	let studioAudioSource = $state<StudioAudioSource>('library');
+	let studioSelectedTrackId = $state<string>('');
+	let isUploadingAudio = $state(false);
+
+	async function handleAudioUpload(e: Event) {
+		const target = e.target as HTMLInputElement;
+		const file = target.files?.[0];
+		if (!file) return;
+
+		isUploadingAudio = true;
+		const formData = new FormData();
+		formData.append('file', file);
+
+		try {
+			const res = await fetch('/api/audio/upload', {
+				method: 'POST',
+				body: formData
+			});
+			const data = await res.json();
+			if (!res.ok) throw new Error(data.error || 'Failed to upload');
+			studioAudioUrl = data.url;
+			toast.success('Audio uploaded successfully');
+		} catch (err) {
+			toast.error(err instanceof Error ? err.message : 'Upload failed');
+		} finally {
+			isUploadingAudio = false;
+		}
+	}
 
 	// ─── Generation state ─────────────────────────────────────────────────────────
 	let isGenerating = $state(false);
@@ -168,6 +198,16 @@
 
 	// Sync easy/custom model to selectedModel
 	$effect(() => { easyModel = selectedModel; customModel = selectedModel; });
+
+	// Sync library track to studio audio url
+	$effect(() => {
+		if (studioAudioSource === 'library' && studioSelectedTrackId) {
+			const track = tracks.find(t => t.id === studioSelectedTrackId);
+			if (track && track.audioUrl) {
+				studioAudioUrl = track.audioUrl;
+			}
+		}
+	});
 
 	// ─── Studio modes ─────────────────────────────────────────────────────────────
 	const STUDIO_MODES = [
@@ -772,13 +812,56 @@
 						{/each}
 					</div>
 					{#if studioMode !== 'lyrics'}
-						<input
-							bind:value={studioAudioUrl}
-							type="url"
-							placeholder="URL del audio..."
-							class="w-full rounded-xl px-4 py-2.5 text-sm focus:outline-none"
-							style="background:var(--ga-box);border:1px solid var(--ga-border);color:var(--ga-text);"
-						/>
+						<div class="rounded-xl overflow-hidden" style="background:var(--ga-box);border:1px solid var(--ga-border);">
+							<div class="flex border-b" style="border-color:var(--ga-border);">
+								<button class="flex-1 py-2 text-xs font-semibold text-center transition-colors {studioAudioSource === 'library' ? 'bg-white/5 text-white' : 'text-white/50 hover:bg-white/5'}" onclick={() => studioAudioSource = 'library'}>My Library</button>
+								<button class="flex-1 py-2 text-xs font-semibold text-center transition-colors border-l {studioAudioSource === 'upload' ? 'bg-white/5 text-white' : 'text-white/50 hover:bg-white/5'}" style="border-color:var(--ga-border);" onclick={() => studioAudioSource = 'upload'}>Upload File</button>
+								<button class="flex-1 py-2 text-xs font-semibold text-center transition-colors border-l {studioAudioSource === 'url' ? 'bg-white/5 text-white' : 'text-white/50 hover:bg-white/5'}" style="border-color:var(--ga-border);" onclick={() => studioAudioSource = 'url'}>Paste URL</button>
+							</div>
+							<div class="p-4">
+								{#if studioAudioSource === 'library'}
+									<select
+										bind:value={studioSelectedTrackId}
+										class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+										style="background:rgba(255,255,255,0.05); border:1px solid var(--ga-border); color:var(--ga-text);"
+									>
+										<option value="" disabled>Select a track...</option>
+										{#each tracks as track}
+											{#if track.audioUrl}
+												<option value={track.id}>{track.title || 'Untitled'}</option>
+											{/if}
+										{/each}
+									</select>
+								{:else if studioAudioSource === 'upload'}
+									<div class="flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg" style="border-color:var(--ga-border);background:rgba(255,255,255,0.02);">
+										{#if isUploadingAudio}
+											<div class="flex flex-col items-center justify-center gap-2">
+												<span class="inline-block w-6 h-6 border-2 border-white/30 border-t-[var(--ga-gold)] rounded-full animate-spin"></span>
+												<span class="text-xs text-white/50">Uploading...</span>
+											</div>
+										{:else}
+											<input type="file" id="studio-audio-upload" accept="audio/*" class="hidden" onchange={handleAudioUpload} />
+											<label for="studio-audio-upload" class="cursor-pointer flex flex-col items-center justify-center gap-2">
+												<svg class="w-8 h-8 text-white/40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+												<span class="text-xs font-semibold" style="color:var(--ga-gold);">Choose an audio file</span>
+												<span class="text-[10px] text-white/40">MP3 or WAV up to 15MB</span>
+											</label>
+											{#if studioAudioUrl && studioAudioUrl.includes('upload')}
+												<div class="mt-3 text-xs text-green-400 font-medium">✓ Audio uploaded successfully</div>
+											{/if}
+										{/if}
+									</div>
+								{:else}
+									<input
+										bind:value={studioAudioUrl}
+										type="url"
+										placeholder="https://..."
+										class="w-full rounded-lg px-3 py-2 text-sm focus:outline-none"
+										style="background:rgba(255,255,255,0.05); border:1px solid var(--ga-border); color:var(--ga-text);"
+									/>
+								{/if}
+							</div>
+						</div>
 					{/if}
 					<textarea
 						bind:value={studioPrompt}
