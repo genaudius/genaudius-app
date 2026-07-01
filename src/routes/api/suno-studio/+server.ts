@@ -92,20 +92,27 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 		const body = await request.json();
 		const { action, ...params } = body;
+		let finalAction = action;
 
-		if (action === 'music-video' && params.audioUrl) {
+		if (params.audioUrl) {
 			const match = params.audioUrl.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i);
 			if (match) {
 				params.taskId = match[0];
 				params.audioId = match[0];
+			} else {
+				// No UUID found. This is a custom uploaded file or raw URL.
+				// For 'extend', kie.ai uses 'upload-extend'
+				if (action === 'extend') {
+					finalAction = 'upload-extend';
+				}
 			}
 		}
 
-		if (!action || !ACTION_MAP[action]) {
-			return json({ error: `Unknown action: ${action}. Valid: ${Object.keys(ACTION_MAP).join(', ')}` }, { status: 400 });
+		if (!finalAction || !ACTION_MAP[finalAction]) {
+			return json({ error: `Unknown action: ${finalAction}. Valid: ${Object.keys(ACTION_MAP).join(', ')}` }, { status: 400 });
 		}
 
-		const { createPath, statusPath, responseKey } = ACTION_MAP[action];
+		const { createPath, statusPath, responseKey } = ACTION_MAP[finalAction];
 
 		// Add callBackUrl if not provided (required by kie.ai even when polling)
 		const origin = request.headers.get('origin') || new URL(request.url).origin;
@@ -135,7 +142,7 @@ export const POST: RequestHandler = async ({ request, locals, url }) => {
 
 		const taskId = submitJson.data.taskId;
 
-		return json({ success: true, action, taskId });
+		return json({ success: true, action: finalAction, taskId });
 	} catch (error) {
 		console.error('Suno studio error:', error);
 		return json(

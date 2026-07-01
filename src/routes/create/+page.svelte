@@ -355,12 +355,13 @@
 			if (!res.ok) { toast.error(json.error || 'Studio operation failed'); return; }
 
 			const taskId = json.taskId;
+			const finalAction = json.action || studioMode;
 			
 			// Poll until done
 			while (isGenerating) {
 				await new Promise(r => setTimeout(r, 10000));
 				
-				const statusRes = await fetch(`/api/suno-studio?action=${studioMode}&taskId=${taskId}`);
+				const statusRes = await fetch(`/api/suno-studio?action=${finalAction}&taskId=${taskId}`);
 				const statusJson = await statusRes.json();
 				
 				if (!statusRes.ok) {
