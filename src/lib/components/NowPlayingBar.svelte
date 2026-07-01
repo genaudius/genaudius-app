@@ -365,15 +365,14 @@
 <!-- ─── Player Bar ─────────────────────────────────────────────────────────── -->
 {#if playerState.currentTrack}
 	<div
-		class="fixed bottom-0 z-50 h-[72px] flex items-center px-4 gap-4 select-none"
+		class="fixed bottom-0 z-50 h-[80px] flex items-center px-6 gap-6 select-none"
 		style="left: {leftOffset}; right: {rightOffset}; transition: left 0.3s ease, right 0.3s ease; background: rgba(13,13,15,0.97); backdrop-filter: blur(20px); border-top: 1px solid rgba(255,255,255,0.07);"
 		role="region"
 		aria-label="Now Playing"
 	>
-		<!-- LEFT: Cover + info + close -->
-		<div class="flex items-center gap-3 min-w-0 shrink-0" style="width: 220px;">
-			<!-- Cover art -->
-			<div class="relative shrink-0 w-11 h-11 rounded-md overflow-hidden shadow-lg">
+		<!-- LEFT: Cover + info -->
+		<div class="flex items-center gap-4 min-w-0 shrink-0" style="width: 250px;">
+			<div class="relative shrink-0 w-12 h-12 rounded-md overflow-hidden shadow-lg">
 				<img
 					src={playerState.currentTrack.coverUrl || DEFAULT_COVER}
 					alt={playerState.currentTrack.title}
@@ -381,181 +380,98 @@
 					onerror={(e) => { (e.target as HTMLImageElement).src = DEFAULT_COVER; }}
 				/>
 			</div>
-
-			<!-- Title + artist -->
 			<div class="min-w-0 flex-1">
-				<p class="text-sm font-medium text-white truncate leading-tight">{playerState.currentTrack.title}</p>
-				<p class="text-xs truncate leading-tight mt-0.5" style="color: rgba(255,255,255,0.45);">
+				<p class="text-sm font-semibold text-white truncate leading-tight">{playerState.currentTrack.title}</p>
+				<p class="text-xs truncate leading-tight mt-1" style="color: rgba(255,255,255,0.45);">
 					{playerState.currentTrack.artist}
-					{#if playerState.currentTrack.isInstrumental}
-						<span class="ml-1 text-[10px] uppercase tracking-wider" style="color: #a78bfa;">Instr.</span>
-					{/if}
 				</p>
 			</div>
-
-			<!-- Like + Now Playing toggle -->
-			<div class="flex items-center gap-0.5 shrink-0">
-				<button
-					onclick={() => playerState.toggleLike()}
-					class="p-1.5 rounded-full transition-colors hover:bg-white/10"
-					style="color: {playerState.isLiked ? '#f43f5e' : 'rgba(255,255,255,0.35)'};"
-					title="Like"
-					aria-label="Like"
-				>
-					<svg class="w-4 h-4" style="fill: {playerState.isLiked ? '#f43f5e' : 'none'};" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
-					</svg>
-				</button>
-				<button
-					onclick={() => playerState.toggleNowPlaying()}
-					class="p-1.5 rounded-full transition-colors hover:bg-white/10"
-					style="color: {playerState.showNowPlaying ? '#a78bfa' : 'rgba(255,255,255,0.35)'};"
-					title="Now Playing"
-					aria-label="Toggle now playing panel"
-				>
-					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17h8v1H8v-1zm0-3h8v1H8v-1zm0-3h5v1H8v-1z"/>
-					</svg>
-				</button>
-			</div>
 		</div>
 
-		<!-- CENTER: Controls + progress -->
-		<div class="flex-1 flex flex-col items-center justify-center gap-1 min-w-0">
-			<!-- Playback controls -->
-			<div class="flex items-center gap-4">
-				<button
-					onclick={() => playerState.prev()}
-					class="transition-colors disabled:opacity-30"
-					style="color: rgba(255,255,255,0.55);"
-					disabled={!playerState.hasPrev && playerState.currentTimeMs < 3000}
-					aria-label="Previous"
-				>
-					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M6 6h2v12H6zm3.5 6 8.5 6V6l-8.5 6z"/>
-					</svg>
-				</button>
-
-				<button
-					onclick={() => playerState.toggle()}
-					class="w-9 h-9 rounded-full bg-white flex items-center justify-center text-black hover:scale-105 active:scale-95 transition-transform shadow-lg"
-					aria-label={playerState.isPlaying ? 'Pause' : 'Play'}
-				>
-					{#if playerState.isPlaying}
-						<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
-						</svg>
-					{:else}
-						<svg class="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor">
-							<path d="M8 5v14l11-7z"/>
-						</svg>
-					{/if}
-				</button>
-
-				<button
-					onclick={() => playerState.next()}
-					class="transition-colors disabled:opacity-30"
-					style="color: rgba(255,255,255,0.55);"
-					disabled={!playerState.hasNext}
-					aria-label="Next"
-				>
-					<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 3.9V8.1L8.5 12zM16 6h2v12h-2z"/>
-					</svg>
-				</button>
-			</div>
-
-			<!-- Progress bar -->
-			<div class="flex items-center gap-2 w-full max-w-lg">
-				<span class="text-[10px] tabular-nums w-8 text-right shrink-0" style="color: rgba(255,255,255,0.35);">
-					{formatTime(playerState.currentTimeMs)}
-				</span>
-
-				<!-- svelte-ignore a11y_no_static_element_interactions -->
-				<div
-					bind:this={progressBarEl}
-					class="relative flex-1 h-1 rounded-full cursor-pointer group"
-					style="background: rgba(255,255,255,0.18);"
-					onmousedown={onProgressMouseDown}
-					role="slider"
-					aria-label="Seek"
-					aria-valuemin={0}
-					aria-valuemax={playerState.durationMs}
-					aria-valuenow={playerState.currentTimeMs}
-				>
-					<div
-						class="absolute left-0 top-0 h-full bg-white rounded-full"
-						style="width: {playerState.progressPercent}%; transition: width 0.1s linear;"
-					/>
-					<div
-						class="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity {isDraggingProgress ? '!opacity-100' : ''}"
-						style="left: calc({playerState.progressPercent}% - 6px);"
-					/>
-				</div>
-
-				<span class="text-[10px] tabular-nums w-8 shrink-0" style="color: rgba(255,255,255,0.35);">
-					{formatTime(playerState.durationMs)}
-				</span>
-			</div>
-		</div>
-
-		<!-- RIGHT: Volume + stop -->
-		<div class="flex items-center gap-3 justify-end shrink-0" style="width: 180px;">
-			<!-- Mute toggle -->
-			<button
-				onclick={() => playerState.toggleMute()}
-				class="transition-colors hover:text-white shrink-0"
-				style="color: rgba(255,255,255,0.45);"
-				aria-label={playerState.isMuted ? 'Unmute' : 'Mute'}
-			>
-				{#if playerState.isMuted || playerState.volume === 0}
-					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.796 8.796 0 0 0 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06A8.99 8.99 0 0 0 17.73 18L19 19.27 20.27 18 5.27 3 4.27 4.27zM12 4 9.91 6.09 12 8.18V4z"/>
-					</svg>
-				{:else if playerState.volume < 0.5}
-					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M7 9v6h4l5 5V4l-5 5H7zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-					</svg>
-				{:else}
-					<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-						<path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-					</svg>
-				{/if}
+		<!-- CENTER: Streamio AudioPlayer Design -->
+		<div class="flex-1 flex items-center justify-center gap-4 min-w-0">
+			<!-- Previous track button -->
+			<button onclick={() => playerState.prev()} class="text-gray-400 hover:text-white transition-colors" disabled={!playerState.hasPrev && playerState.currentTimeMs < 3000}>
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M6 6h2v12H6zm3.5 6 8.5 6V6l-8.5 6z"/>
+				</svg>
 			</button>
 
-			<!-- Volume slider -->
-			<!-- svelte-ignore a11y_no_static_element_interactions -->
-			<div
-				bind:this={volumeBarEl}
-				class="relative w-20 h-1 rounded-full cursor-pointer group"
-				style="background: rgba(255,255,255,0.18);"
-				onmousedown={onVolumeMouseDown}
-				role="slider"
-				aria-label="Volume"
-				aria-valuemin={0}
-				aria-valuemax={1}
-				aria-valuenow={playerState.volume}
-			>
-				<div
-					class="absolute left-0 top-0 h-full rounded-full"
-					style="width: {playerState.isMuted ? 0 : playerState.volume * 100}%; background: rgba(255,255,255,0.75);"
-				/>
-				<div
-					class="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"
-					style="left: calc({playerState.isMuted ? 0 : playerState.volume * 100}% - 5px);"
-				/>
+			<div class="audioplayer {playerState.isPlaying ? 'audioplayer-playing' : ''} flex-1 max-w-2xl">
+				<!-- Play/Pause -->
+				<div class="audioplayer-playpause" onclick={() => playerState.toggle()} aria-label={playerState.isPlaying ? 'Pause' : 'Play'}>
+					<a href="javascript:void(0)" aria-label={playerState.isPlaying ? 'Pause' : 'Play'}></a>
+				</div>
+				
+				<!-- Time Current -->
+				<div class="audioplayer-time audioplayer-time-current">
+					{formatTime(playerState.currentTimeMs)}
+				</div>
+				
+				<!-- Progress Bar -->
+				<!-- svelte-ignore a11y_no_static_element_interactions -->
+				<div 
+					class="audioplayer-bar group"
+					bind:this={progressBarEl}
+					onmousedown={onProgressMouseDown}
+				>
+					<div class="audioplayer-bar-loaded" style="width: 100%;"></div>
+					<div class="audioplayer-bar-played" style="width: {playerState.progressPercent}%;"></div>
+				</div>
+				
+				<!-- Time Duration -->
+				<div class="audioplayer-time audioplayer-time-duration">
+					{formatTime(playerState.durationMs)}
+				</div>
+				
+				<!-- Volume -->
+				<div class="audioplayer-volume">
+					<div class="audioplayer-volume-button" onclick={() => playerState.toggleMute()}>
+						<a href="javascript:void(0)" style="{playerState.isMuted || playerState.volume === 0 ? 'background-color: #fd4f1a;' : ''}"></a>
+					</div>
+					<!-- svelte-ignore a11y_no_static_element_interactions -->
+					<div class="audioplayer-volume-adjust" bind:this={volumeBarEl} onmousedown={onVolumeMouseDown}>
+						<div>
+							<div style="width: {playerState.isMuted ? 0 : playerState.volume * 100}%;"></div>
+						</div>
+					</div>
+				</div>
 			</div>
 
-			<!-- Stop/close player -->
+			<!-- Next track button -->
+			<button onclick={() => playerState.next()} class="text-gray-400 hover:text-white transition-colors" disabled={!playerState.hasNext}>
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M6 18l8.5-6L6 6v12zm2.5-6 5.5 3.9V8.1L8.5 12zM16 6h2v12h-2z"/>
+				</svg>
+			</button>
+		</div>
+
+		<!-- RIGHT: Extra Controls -->
+		<div class="flex items-center gap-3 justify-end shrink-0" style="width: 250px;">
+			<button
+				onclick={() => playerState.toggleLike()}
+				class="p-2 rounded-full transition-colors hover:bg-white/10"
+				style="color: {playerState.isLiked ? '#fd4f1a' : 'rgba(255,255,255,0.35)'};"
+			>
+				<svg class="w-5 h-5" style="fill: {playerState.isLiked ? '#fd4f1a' : 'none'};" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+				</svg>
+			</button>
+			<button
+				onclick={() => playerState.toggleNowPlaying()}
+				class="p-2 rounded-full transition-colors hover:bg-white/10"
+				style="color: {playerState.showNowPlaying ? '#0059ff' : 'rgba(255,255,255,0.35)'};"
+			>
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+					<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM8 17h8v1H8v-1zm0-3h8v1H8v-1zm0-3h5v1H8v-1z"/>
+				</svg>
+			</button>
 			<button
 				onclick={() => playerState.stop()}
-				class="p-1.5 rounded-full transition-colors hover:bg-white/10 shrink-0"
-				style="color: rgba(255,255,255,0.3);"
-				title="Close player"
-				aria-label="Close player"
+				class="p-2 rounded-full transition-colors hover:bg-white/10 text-gray-400 hover:text-white ml-2"
 			>
-				<svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-					<path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+				<svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M18 6L6 18M6 6l12 12"></path>
 				</svg>
 			</button>
 		</div>

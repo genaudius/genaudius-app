@@ -1,3 +1,4 @@
+import { playerState } from '$lib/stores/player.svelte.js';
 import { ELEVENLABS_MUSIC_MODELS } from "$lib/constants/elevenlabs.js";
 
 const SUNO_MUSIC_MODELS = [
