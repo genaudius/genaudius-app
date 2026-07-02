@@ -325,6 +325,7 @@ class SettingsStore {
         replicateApiKey: aiModelSettings.replicate_api_key || DEFAULT_SETTINGS.replicateApiKey,
         elevenlabsApiKey: aiModelSettings.elevenlabs_api_key || DEFAULT_SETTINGS.elevenlabsApiKey,
         sunoApiKey: aiModelSettings.suno_api_key || DEFAULT_SETTINGS.sunoApiKey,
+        musicgptApiKey: aiModelSettings.musicgpt_api_key || DEFAULT_SETTINGS.musicgptApiKey,
         r2AccountId: cloudStorageSettings.r2_account_id || DEFAULT_SETTINGS.r2AccountId,
         r2AccessKeyId: cloudStorageSettings.r2_access_key_id || DEFAULT_SETTINGS.r2AccessKeyId,
         r2SecretAccessKey: cloudStorageSettings.r2_secret_access_key || DEFAULT_SETTINGS.r2SecretAccessKey,
