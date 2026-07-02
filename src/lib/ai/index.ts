@@ -3,13 +3,15 @@ import { openRouterProvider } from './providers/openrouter.js';
 import { replicateProvider } from './providers/replicate.js';
 import { elevenlabsProvider } from './providers/elevenlabs.js';
 import { sunoProvider } from './providers/suno.js';
+import { musicgptProvider } from './providers/musicgpt.js';
 import { removeWebSearchSuffix } from '$lib/constants/web-search.js';
 
 export const AI_PROVIDERS: AIProvider[] = [
 	openRouterProvider,
 	replicateProvider,
 	elevenlabsProvider,
-	sunoProvider
+	sunoProvider,
+	musicgptProvider
 ];
 
 export function getAllModels(): AIModelConfig[] {
@@ -33,5 +35,6 @@ export { openRouterProvider } from './providers/openrouter.js';
 export { replicateProvider } from './providers/replicate.js';
 export { elevenlabsProvider } from './providers/elevenlabs.js';
 export { sunoProvider } from './providers/suno.js';
+export { musicgptProvider } from './providers/musicgpt.js';
 // Re-export client-safe constants from the constants file (single source of truth)
 export { ELEVENLABS_VOICES } from '$lib/constants/elevenlabs.js';

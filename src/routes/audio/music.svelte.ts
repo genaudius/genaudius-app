@@ -1,20 +1,8 @@
 import { playerState } from '$lib/stores/player.svelte.js';
-import { ELEVENLABS_MUSIC_MODELS } from "$lib/constants/elevenlabs.js";
-
-const SUNO_MUSIC_MODELS = [
-  { id: 'suno-v3.5', name: 'Suno V3.5' },
-  { id: 'suno-v4', name: 'Suno V4' },
-  { id: 'suno-v4.5', name: 'Suno V4.5' },
-  { id: 'suno-v4.5-plus', name: 'Suno V4.5 Plus' },
-  { id: 'suno-v4.5-all', name: 'Suno V4.5 All' },
-  { id: 'suno-v5', name: 'Suno V5' },
-  { id: 'suno-v5.5', name: 'Suno V5.5' },
-  { id: 'suno-v7.5', name: 'Suno V7.5' },
-] as const;
-
 const ALL_MUSIC_MODELS = [
-  ...ELEVENLABS_MUSIC_MODELS,
-  ...SUNO_MUSIC_MODELS,
+  { id: 'music_v1', name: 'Music v1' },
+  { id: 'music_v2', name: 'Music v2' },
+  { id: 'music_v3', name: 'Music v3' }
 ] as const;
 
 /**
@@ -43,7 +31,7 @@ export class MusicState {
   readonly models = ALL_MUSIC_MODELS;
 
   // Model Selection
-  selectedModel = $state<string>("suno-v7.5");
+  selectedModel = $state<string>("music_v2");
 
   // Input Settings
   inputPrompt = $state<string>("");
@@ -101,7 +89,7 @@ export class MusicState {
   }
 
   get isSunoModel() {
-    return this.selectedModel.startsWith('suno-');
+    return this.selectedModel === 'music_v2';
   }
 
   get durationMilliseconds() {
@@ -129,71 +117,94 @@ export class MusicState {
     if (!this.inputPrompt.trim()) return;
     if (this.isPromptTooLong) return;
 
+    const startModelId = this.selectedModel;
+    const modelsToTry = startModelId === 'music_v2' ? ['music_v2', 'music_v3', 'music_v1'] : [startModelId];
+
     this.isGenerating = true;
     this.errorMessage = null;
 
-    try {
-      // Always include musicLengthMs - null = auto mode (model chooses duration based on prompt)
-      const response = await fetch("/api/music-generation", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          prompt: this.inputPrompt.trim(),
-          modelId: this.selectedModel,
-          forceInstrumental: this.forceInstrumental,
-          outputFormat: "mp3_44100_128",
-          musicLengthMs: this.durationMilliseconds, // null = auto mode
-        }),
-      });
-
-      let data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to generate music");
-      }
-
-      // If provider is Suno, we need to poll for the result since it's asynchronous
-      if (data.provider === 'suno' && data.taskId) {
-        const taskId = data.taskId;
-        let isDone = false;
-        
-        // Poll every 5 seconds for up to 3 minutes (36 attempts)
-        const maxAttempts = 36;
-        let attempts = 0;
-        
-        while (!isDone && attempts < maxAttempts) {
-          attempts++;
-          // Sleep for 5 seconds
-          await new Promise((resolve) => setTimeout(resolve, 5000));
-          
-          const pollResponse = await fetch(`/api/music-generation?taskId=${taskId}`);
-          if (!pollResponse.ok) {
-            throw new Error(`Polling failed: ${pollResponse.statusText}`);
-          }
-          
-          const pollData = await pollResponse.json();
-          
-          if (pollData.status === 'done') {
-            isDone = true;
-            // Overwrite `data` with the final result containing audioData
-            data = pollData;
-          } else if (pollData.status === 'error') {
-            throw new Error(pollData.error || "Failed to generate music via Suno");
-          }
-          // If status is 'pending', the loop continues
-        }
-        
-        if (!isDone) {
-          throw new Error("Music generation timed out. It might still be processing in the background.");
+    for (let i = 0; i < modelsToTry.length; i++) {
+      const currentModel = modelsToTry[i];
+      try {
+        await this.attemptGeneration(currentModel);
+        break; // Success
+      } catch (error) {
+        console.error(`Music generation error (${currentModel}):`, error);
+        if (i === modelsToTry.length - 1) {
+          this.errorMessage =
+            error instanceof Error ? error.message : "Failed to generate music";
         }
       }
+    }
 
+    this.isGenerating = false;
+  }
+
+  async attemptGeneration(modelId: string) {
+    // Always include musicLengthMs - null = auto mode (model chooses duration based on prompt)
+    const response = await fetch("/api/music-generation", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        prompt: this.inputPrompt.trim(),
+        modelId,
+        forceInstrumental: this.forceInstrumental,
+        outputFormat: "mp3_44100_128",
+        musicLengthMs: this.durationMilliseconds, // null = auto mode
+      }),
+    });
+
+    let data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Failed to generate music");
+    }
+
+    // If provider is Suno or MusicGPT, we need to poll for the result since it's asynchronous
+    if ((data.provider === 'suno' || data.provider === 'musicgpt') && data.taskId) {
+      const taskId = data.taskId;
+      let isDone = false;
+      
+      // Poll every 3 seconds for up to 2 minutes (40 attempts) before falling back
+      const maxAttempts = 40;
+      let attempts = 0;
+      
+      while (!isDone && attempts < maxAttempts) {
+        attempts++;
+        // Sleep for 3 seconds
+        await new Promise((resolve) => setTimeout(resolve, 3000));
+        
+        const pollResponse = await fetch(`/api/music-generation?taskId=${taskId}&provider=${data.provider}`);
+        if (!pollResponse.ok) {
+          throw new Error(`Polling failed: ${pollResponse.statusText}`);
+        }
+        
+        const pollData = await pollResponse.json();
+        
+        if (pollData.status === 'done') {
+          isDone = true;
+          // Overwrite `data` with the final result containing audioData
+          data = pollData;
+        } else if (pollData.status === 'error') {
+          throw new Error(pollData.error || `Failed to generate music via ${data.provider}`);
+        }
+        // If status is 'pending', the loop continues
+      }
+      
+      if (!isDone) {
+        throw new Error("Music generation timed out. It might still be processing in the background.");
+      }
+    }
+
+    // Handle both base64 audio data and direct URLs
+    let mimeType = data.mimeType || "audio/mpeg";
+    this.generatedAudioMimeType = mimeType;
+
+    if (data.audioData) {
       // Convert base64 audio to blob URL
-      const audioData = data.audioData;
-      const mimeType = data.mimeType || "audio/mpeg";
-      const byteCharacters = atob(audioData);
+      const byteCharacters = atob(data.audioData);
       const byteNumbers = new Array(byteCharacters.length);
       for (let i = 0; i < byteCharacters.length; i++) {
         byteNumbers[i] = byteCharacters.charCodeAt(i);
@@ -202,38 +213,36 @@ export class MusicState {
       const blob = new Blob([byteArray], { type: mimeType });
 
       // Revoke previous URL to prevent memory leaks
-      if (this.generatedAudioUrl) {
+      if (this.generatedAudioUrl && this.generatedAudioUrl.startsWith('blob:')) {
         URL.revokeObjectURL(this.generatedAudioUrl);
       }
 
       this.generatedAudioUrl = URL.createObjectURL(blob);
-      this.generatedAudioMimeType = mimeType;
-
-      // Reload history to show the new music
-      await this.loadHistory();
-
-      // Auto-open dialog with the newly created music
-      if (this.history.length > 0) {
-        const newItem = this.history[0];
-        this.selectedMusicPrompt = newItem.prompt;
-        this.selectedMusicId = newItem.id;
-        this.selectedMusicUrl = newItem.url;
-        this.selectedMusicModel = newItem.model;
-        this.selectedMusicDurationMs = newItem.durationMs;
-        this.selectedMusicIsInstrumental = newItem.isInstrumental;
-        this.selectedMusicMimeType = newItem.mimeType;
-        this.showDetailsDialog = true;
-      }
-
-      // Clear input after successful generation
-      this.inputPrompt = "";
-    } catch (error) {
-      console.error("Music generation error:", error);
-      this.errorMessage =
-        error instanceof Error ? error.message : "Failed to generate music";
-    } finally {
-      this.isGenerating = false;
+    } else if (data.audioUrl) {
+      // Use the returned URL directly (from Suno or MusicGPT polling)
+      this.generatedAudioUrl = data.audioUrl;
+    } else {
+      throw new Error("No audio data or URL was returned from the API");
     }
+
+    // Reload history to show the new music
+    await this.loadHistory();
+
+    // Auto-open dialog with the newly created music
+    if (this.history.length > 0) {
+      const newItem = this.history[0];
+      this.selectedMusicPrompt = newItem.prompt;
+      this.selectedMusicId = newItem.id;
+      this.selectedMusicUrl = newItem.url;
+      this.selectedMusicModel = newItem.model;
+      this.selectedMusicDurationMs = newItem.durationMs;
+      this.selectedMusicIsInstrumental = newItem.isInstrumental;
+      this.selectedMusicMimeType = newItem.mimeType;
+      this.showDetailsDialog = true;
+    }
+
+    // Clear input after successful generation
+    this.inputPrompt = "";
   }
 
   // ==================== Playback Methods ====================

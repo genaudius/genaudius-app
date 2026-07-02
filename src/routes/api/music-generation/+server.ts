@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types.js';
 import { generateMusic as elevenlabsGenerateMusic } from '$lib/ai/providers/elevenlabs.js';
 import { sunoProvider, sunoSubmitTask, sunoCheckStatus } from '$lib/ai/providers/suno.js';
+import { musicgptProvider, musicgptSubmitTask, musicgptCheckStatus } from '$lib/ai/providers/musicgpt.js';
 import { UsageTrackingService, UsageLimitError } from '$lib/server/usage-tracking.js';
 import { saveMusicAndGetId } from '$lib/ai/utils.js';
 import { db } from '$lib/server/db/index.js';
@@ -11,6 +12,7 @@ import { isDemoModeRestricted, DEMO_MODE_MESSAGES } from '$lib/constants/demo-mo
 
 const VALID_ELEVENLABS_MUSIC_MODELS = ['music_v1'];
 const VALID_SUNO_MODELS = ['suno-v3.5', 'suno-v4', 'suno-v4.5', 'suno-v4.5-plus', 'suno-v4.5-all', 'suno-v5', 'suno-v5.5', 'suno-v7.5'];
+const VALID_MUSICGPT_MODELS = ['musicgpt-v1'];
 
 export const POST: RequestHandler = async ({ request, locals }) => {
 	try {
@@ -36,6 +38,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			customMode = false,
 			style,
 			title,
+			vocalGender,
 		} = body;
 
 		if (!prompt || typeof prompt !== 'string' || prompt.trim().length === 0) {
@@ -45,13 +48,29 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			return json({ error: 'Prompt exceeds maximum length of 4100 characters' }, { status: 400 });
 		}
 
-		const isSunoModel = VALID_SUNO_MODELS.includes(modelId);
-		const isElevenLabsModel = VALID_ELEVENLABS_MUSIC_MODELS.includes(modelId);
+		let internalModelId = modelId;
+		let isSunoModel = false;
+		let isElevenLabsModel = false;
+		let isMusicGptModel = false;
 
-		if (!isSunoModel && !isElevenLabsModel) {
-			return json({
-				error: `Invalid music model: ${modelId}. Valid models: ${[...VALID_ELEVENLABS_MUSIC_MODELS, ...VALID_SUNO_MODELS].join(', ')}`
-			}, { status: 400 });
+		if (modelId === 'music_v1') {
+			isElevenLabsModel = true;
+			internalModelId = 'music_v1';
+		} else if (modelId === 'music_v2') {
+			isSunoModel = true;
+			internalModelId = 'suno-v7.5';
+		} else if (modelId === 'music_v3') {
+			isMusicGptModel = true;
+			internalModelId = 'musicgpt-v1';
+		} else {
+			// Legacy support
+			isSunoModel = VALID_SUNO_MODELS.includes(modelId);
+			isElevenLabsModel = VALID_ELEVENLABS_MUSIC_MODELS.includes(modelId);
+			isMusicGptModel = VALID_MUSICGPT_MODELS.includes(modelId);
+
+			if (!isElevenLabsModel && !isSunoModel && !isMusicGptModel) {
+				return json({ error: `Invalid model ID for music generation. Expected one of: music_v1, music_v2, music_v3 or legacy IDs.` }, { status: 400 });
+			}
 		}
 
 		if (!isSunoModel && musicLengthMs != null) {
@@ -80,7 +99,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			const origin = request.headers.get('origin') || new URL(request.url).origin;
 			const taskId = await sunoSubmitTask({
 				prompt: prompt.trim(),
-				modelId,
+				modelId: internalModelId,
 				forceInstrumental: Boolean(forceInstrumental),
 				customMode: Boolean(customMode),
 				style,
@@ -89,7 +108,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			});
 
 			const userId = session.user.id;
-			
+
 			// BACKGROUND POLL & SAVE
 			(async () => {
 				const MAX_WAIT = 600_000; // 10 mins
@@ -112,7 +131,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 				try {
 					const titleToCheck = track.title || taskId;
 					const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
-					
+
 					const existing = await db.select().from(music).where(
 						and(
 							eq(music.userId, userId),
@@ -146,12 +165,79 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 			})();
 
 			return json({ taskId, provider: 'suno' });
+		} else if (isMusicGptModel) {
+			const origin = request.headers.get('origin') || new URL(request.url).origin;
+			const taskId = await musicgptSubmitTask({
+				prompt: prompt.trim(),
+				modelId: internalModelId,
+				forceInstrumental: Boolean(forceInstrumental),
+				vocalGender,
+			});
+
+			const userId = session.user.id;
+
+			// BACKGROUND POLL & SAVE
+			(async () => {
+				const MAX_WAIT = 600_000; // 10 mins
+				const deadline = Date.now() + MAX_WAIT;
+				let track = null;
+
+				while (Date.now() < deadline) {
+					try {
+						const result = await musicgptCheckStatus(taskId);
+						if (result.status === 'done') { track = result.track; break; }
+						if (result.status === 'error') return;
+					} catch (e) {
+						// ignore poll error and try again
+					}
+					await new Promise(r => setTimeout(r, 10000));
+				}
+
+				if (!track) return; // timed out
+
+				try {
+					const titleToCheck = track.title || taskId;
+					const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+
+					const existing = await db.select().from(music).where(
+						and(
+							eq(music.userId, userId),
+							eq(music.prompt, titleToCheck),
+							gte(music.createdAt, tenMinutesAgo)
+						)
+					).limit(1);
+
+					if (existing.length === 0) {
+						// Not saved by frontend, save it in the background
+						const audioRes = await fetch(track.audioUrl);
+						if (audioRes.ok) {
+							const audioBuffer = Buffer.from(await audioRes.arrayBuffer());
+							const durationMs = Math.round((track.duration || 0) * 1000);
+							await saveMusicAndGetId(
+								audioBuffer,
+								'audio/mpeg',
+								userId,
+								titleToCheck,
+								'musicgpt',
+								durationMs,
+								false,
+								undefined,
+								track.imageUrl
+							);
+						}
+					}
+				} catch (e) {
+					console.error('Background saving error (MusicGPT):', e);
+				}
+			})();
+
+			return json({ taskId, provider: 'musicgpt' });
 		}
 
 		// ── ElevenLabs: synchronous (fast, < 30s) ────────────────────────────────
 		const response = await elevenlabsGenerateMusic({
 			prompt: prompt.trim(),
-			modelId,
+			modelId: internalModelId,
 			forceInstrumental: Boolean(forceInstrumental),
 			outputFormat,
 			musicLengthMs: musicLengthMs != null ? Number(musicLengthMs) : undefined
@@ -186,10 +272,16 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 	if (!session?.user?.id) return json({ error: 'Authentication required' }, { status: 401 });
 
 	const taskId = url.searchParams.get('taskId');
+	const provider = url.searchParams.get('provider') || 'suno';
 	if (!taskId) return json({ error: 'taskId required' }, { status: 400 });
 
 	try {
-		const result = await sunoCheckStatus(taskId);
+		let result;
+		if (provider === 'musicgpt') {
+			result = await musicgptCheckStatus(taskId);
+		} else {
+			result = await sunoCheckStatus(taskId);
+		}
 
 		if (result.status === 'done' && result.track) {
 			// Download audio, save to DB, return full response
@@ -204,7 +296,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 				'audio/mpeg',
 				session.user.id,
 				result.track.title || taskId,
-				'suno',
+				provider,
 				durationMs,
 				false,
 				undefined,
@@ -233,7 +325,7 @@ export const GET: RequestHandler = async ({ url, locals, request }) => {
 		return json({ status: 'pending' });
 
 	} catch (error) {
-		console.error('Suno status check error:', error);
+		console.error(`${provider} status check error:`, error);
 		return json({ status: 'error', error: error instanceof Error ? error.message : 'Status check failed' });
 	}
 };

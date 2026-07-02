@@ -13,7 +13,8 @@ export const load: PageServerLoad = async () => {
         openrouterApiKey: settings.openrouter_api_key || "",
         replicateApiKey: settings.replicate_api_key || "",
         elevenlabsApiKey: settings.elevenlabs_api_key || "",
-        sunoApiKey: settings.suno_api_key || ""
+        sunoApiKey: settings.suno_api_key || "",
+        musicgptApiKey: settings.musicgpt_api_key || ""
       },
       isDemoMode: isDemoModeEnabled()
     }
@@ -25,7 +26,8 @@ export const load: PageServerLoad = async () => {
         openrouterApiKey: "",
         replicateApiKey: "",
         elevenlabsApiKey: "",
-        sunoApiKey: ""
+        sunoApiKey: "",
+        musicgptApiKey: ""
       },
       isDemoMode: isDemoModeEnabled()
     }
@@ -47,6 +49,7 @@ export const actions: Actions = {
     const replicateApiKey = data.get('replicateApiKey')?.toString()
     const elevenlabsApiKey = data.get('elevenlabsApiKey')?.toString()
     const sunoApiKey = data.get('sunoApiKey')?.toString()
+    const musicgptApiKey = data.get('musicgptApiKey')?.toString()
 
     // Validation for OpenRouter API Key
     if (openrouterApiKey && openrouterApiKey.length < 10) {
@@ -102,6 +105,9 @@ export const actions: Actions = {
       }
       if (shouldSaveValue(sunoApiKey, currentSettings.suno_api_key)) {
         settingsToSave.push({ key: 'suno_api_key', value: sunoApiKey!.trim(), category: 'ai_models', description: 'Suno API key for music generation models (encrypted)' });
+      }
+      if (shouldSaveValue(musicgptApiKey, currentSettings.musicgpt_api_key)) {
+        settingsToSave.push({ key: 'musicgpt_api_key', value: musicgptApiKey!.trim(), category: 'ai_models', description: 'MusicGPT API key for music generation models (encrypted)' });
       }
 
       // Only save if there are actual changes

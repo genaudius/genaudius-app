@@ -12,11 +12,11 @@
 
 	// ─── Easy tab state ────────────────────────────────────────────────────────────
 	let easyPrompt = $state('');
-	let easyModel = $state('suno-v4.5');
+	let easyModel = $state('music_v2');
 
 	// ─── Custom tab state ──────────────────────────────────────────────────────────
 	let customPrompt = $state('');
-	let customModel = $state('suno-v7.5');
+	let customModel = $state('music_v2');
 	let customStyle = $state('');
 	let customTitle = $state('');
 	let customInstrumental = $state(false);
@@ -179,22 +179,15 @@
 
 	// ─── Models with full descriptions (Mureka-style dropdown) ──────────────────
 	const ALL_MODELS = [
-		{ id: 'suno-v7.5', label: 'V7.5-all', desc: 'Latest model. All genres, max quality, up to 10 min. Recommended.' },
-		{ id: 'suno-v5.5', label: 'V5.5', desc: 'Advanced generation. Higher quality and creativity, up to 10 min.' },
-		{ id: 'suno-v5',   label: 'V5',   desc: 'High quality. Expressive vocals, detailed instruments, up to 10 min.' },
-		{ id: 'suno-v4.5-plus', label: 'V4.5+', desc: 'Improved prompt control. Studio-grade results, up to 8 min.' },
-		{ id: 'suno-v4.5', label: 'V4.5', desc: 'Balanced model. Clear vocals, memorable melodies, up to 8 min.' },
-		{ id: 'suno-v4',   label: 'V4',   desc: 'Publish-ready music. Emotive vocals and solid arrangements.' },
-		{ id: 'suno-v3.5', label: 'V3.5', desc: 'Simple music creation. Clear vocals and fast results.' },
-		{ id: 'music_v1',  label: 'ElevenLabs', desc: 'Alternative ElevenLabs engine. Up to 5 min, different style.' },
+		{ id: 'music_v1', label: 'Music v1', desc: 'Alternative engine. Up to 5 min, different style.' },
+		{ id: 'music_v2', label: 'Music v2', desc: 'Latest model. All genres, max quality, up to 10 min. Recommended.' },
+		{ id: 'music_v3', label: 'Music v3', desc: 'Alternative engine for music generation.' },
 	];
 
-	const SUNO_MODELS = ALL_MODELS.filter((m) => m.id.startsWith('suno-'));
-
 	// Shared model state (single model picker for all tabs)
-	let selectedModel = $state('suno-v7.5');
+	let selectedModel = $state('music_v2');
 	let showModelDropdown = $state(false);
-	const selectedModelInfo = $derived(ALL_MODELS.find((m) => m.id === selectedModel) ?? ALL_MODELS[3]);
+	const selectedModelInfo = $derived(ALL_MODELS.find((m) => m.id === selectedModel) ?? ALL_MODELS[1]);
 
 	// Sync easy/custom model to selectedModel
 	$effect(() => { easyModel = selectedModel; customModel = selectedModel; });
@@ -234,118 +227,146 @@
 		const prompt = activeTab === 'easy' ? easyPrompt : customPrompt;
 		if (!prompt.trim()) { toast.error('Please enter a prompt'); return; }
 
-		const modelId = activeTab === 'easy' ? easyModel : customModel;
-		const isSuno = modelId.startsWith('suno-');
+		const startModelId = activeTab === 'easy' ? easyModel : customModel;
+		const modelsToTry = startModelId === 'music_v2' ? ['music_v2', 'music_v3', 'music_v1'] : [startModelId];
 
 		isGenerating = true;
 		generatingTaskId = '';
-		generatingStatus = 'Sending to AI...';
-		startTicker();
-
-		try {
-			const body: Record<string, unknown> = { prompt: prompt.trim(), modelId };
-			if (activeTab === 'custom') {
-				body.forceInstrumental = customInstrumental;
-				if (!customInstrumental) body.vocalGender = customVocalGender;
-				if (customCustomMode) {
-					body.customMode = true;
-					if (customStyle) body.style = customStyle;
-					if (customTitle) body.title = customTitle;
-				}
-			}
-
-			const res = await fetch('/api/music-generation', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(body),
-			});
-			const json = await res.json();
-			if (!res.ok) { toast.error(json.error || 'Generation failed'); return; }
-
-			// ── Suno polling ──────────────────────────────────────────────────────
-			if (isSuno && json.taskId) {
-				generatingTaskId = json.taskId;
-				generatingStatus = 'Creating your track...';
-				let done = false;
-
-				while (!done) {
-					await new Promise((r) => setTimeout(r, 5_000));
-					if (generatingElapsed < 30) generatingStatus = 'Creating your track...';
-					else if (generatingElapsed < 60) generatingStatus = 'Adding melodies and harmonies...';
-					else if (generatingElapsed < 120) generatingStatus = 'Refining the sound...';
-					else generatingStatus = 'Almost ready...';
-
-					let statusJson: { status: string; error?: string; audioUrl?: string; audioData?: string; durationMs?: number; coverUrl?: string; title?: string; tags?: string; musicId?: string };
-					try {
-						const sr = await fetch(`/api/music-generation?taskId=${json.taskId}`);
-						statusJson = await sr.json();
-					} catch { continue; }
-
-					if (statusJson.status === 'done') {
-						done = true;
-						const audioUrl = statusJson.audioUrl
-							|| URL.createObjectURL(base64ToBlob(statusJson.audioData!, 'audio/mpeg'));
-						const trackTitle = statusJson.title
-							|| (activeTab === 'custom' && customTitle ? customTitle : '')
-							|| `Track - ${new Date().toLocaleTimeString()}`;
-						const newTrack: TrackEntry = {
-							id: crypto.randomUUID(),
-							title: trackTitle,
-							audioUrl,
-							coverUrl: statusJson.coverUrl,
-							durationMs: statusJson.durationMs || 0,
-							model: modelId,
-							prompt: prompt.trim(),
-							isInstrumental: activeTab === 'custom' ? customInstrumental : false,
-							tags: statusJson.tags,
-							musicId: statusJson.musicId,
-							isPublic: false,
-							playCount: 0,
-							likeCount: 0,
-							isNew: true,
-							createdAt: new Date().toISOString(),
-						};
-						tracks = [newTrack, ...tracks];
-						// Auto-play immediately so NowPlayingBar appears
-						playTrackEntry(newTrack);
-						toast.success('Track ready!');
-					} else if (statusJson.status === 'error') {
-						toast.error(statusJson.error || 'Generation failed');
-						return;
-					}
-				}
-				return;
-			}
-
-			// ── ElevenLabs (sync) ─────────────────────────────────────────────────
-			const audioBlob = base64ToBlob(json.audioData, json.mimeType || 'audio/mpeg');
-			const audioUrl = URL.createObjectURL(audioBlob);
-			const newTrack: TrackEntry = {
-				id: crypto.randomUUID(),
-				title: customTitle || `Track - ${new Date().toLocaleTimeString()}`,
-				audioUrl,
-				durationMs: json.durationMs || 0,
-				model: json.model || modelId,
-				prompt: prompt.trim(),
-				isInstrumental: json.isInstrumental ?? false,
-				musicId: json.musicId,
-				isPublic: false,
-				playCount: 0,
-				likeCount: 0,
-				isNew: true,
-				createdAt: new Date().toISOString(),
-			};
-			tracks = [newTrack, ...tracks];
-			playTrackEntry(newTrack);
-			toast.success('Track generated!');
-		} catch (err) {
-			toast.error(err instanceof Error ? err.message : 'Generation failed');
-		} finally {
+		
+		for (let i = 0; i < modelsToTry.length; i++) {
+			const currentModel = modelsToTry[i];
+			generatingStatus = i === 0 ? 'Sending to AI...' : `Trying alternative (${currentModel})...`;
 			stopTicker();
-			isGenerating = false;
-			generatingStatus = '';
-			generatingTaskId = '';
+			startTicker();
+			
+			try {
+				await attemptGeneration(prompt, currentModel);
+				// Success
+				break;
+			} catch (err) {
+				console.error(`Model ${currentModel} failed:`, err);
+				if (i === modelsToTry.length - 1) {
+					toast.error(err instanceof Error ? err.message : 'All generation attempts failed');
+				} else {
+					toast.info(`Generation failed, trying alternative...`);
+				}
+			}
 		}
+
+		stopTicker();
+		isGenerating = false;
+		generatingStatus = '';
+		generatingTaskId = '';
+	}
+
+	async function attemptGeneration(prompt: string, modelId: string) {
+		const isSunoOrMusicGpt = modelId === 'music_v2' || modelId === 'music_v3';
+
+		const body: Record<string, unknown> = { prompt: prompt.trim(), modelId };
+		if (activeTab === 'custom') {
+			body.forceInstrumental = customInstrumental;
+			if (!customInstrumental) body.vocalGender = customVocalGender;
+			if (customCustomMode) {
+				body.customMode = true;
+				if (customStyle) body.style = customStyle;
+				if (customTitle) body.title = customTitle;
+			}
+		}
+
+		const res = await fetch('/api/music-generation', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify(body),
+		});
+		const json = await res.json();
+		if (!res.ok) { throw new Error(json.error || 'Generation failed'); }
+
+		// ── Polling (Async) ──────────────────────────────────────────────────────
+		if (isSunoOrMusicGpt && json.taskId) {
+			generatingTaskId = json.taskId;
+			generatingStatus = 'Creating your track...';
+			let done = false;
+			let timeoutAttempts = 0;
+			const MAX_POLL_ATTEMPTS = 40; // 2 minutes (40 * 3s)
+			let pollCount = 0;
+
+			while (!done && pollCount < MAX_POLL_ATTEMPTS) {
+				pollCount++;
+				await new Promise((r) => setTimeout(r, 3_000));
+				if (generatingElapsed < 30) generatingStatus = 'Creating your track...';
+				else if (generatingElapsed < 60) generatingStatus = 'Adding melodies and harmonies...';
+				else if (generatingElapsed < 120) generatingStatus = 'Refining the sound...';
+				else generatingStatus = 'Almost ready...';
+
+				let statusJson: { status: string; error?: string; audioUrl?: string; audioData?: string; durationMs?: number; coverUrl?: string; title?: string; tags?: string; musicId?: string };
+				try {
+					const sr = await fetch(`/api/music-generation?taskId=${json.taskId}&provider=${json.provider}`);
+					statusJson = await sr.json();
+				} catch { 
+					timeoutAttempts++;
+					if (timeoutAttempts > 5) throw new Error("Connection lost during polling");
+					continue; 
+				}
+
+				if (statusJson.status === 'done') {
+					done = true;
+					const audioUrl = statusJson.audioUrl
+						|| URL.createObjectURL(base64ToBlob(statusJson.audioData!, 'audio/mpeg'));
+					const trackTitle = statusJson.title
+						|| (activeTab === 'custom' && customTitle ? customTitle : '')
+						|| `Track - ${new Date().toLocaleTimeString()}`;
+					const newTrack: TrackEntry = {
+						id: crypto.randomUUID(),
+						title: trackTitle,
+						audioUrl,
+						coverUrl: statusJson.coverUrl,
+						durationMs: statusJson.durationMs || 0,
+						model: modelId,
+						prompt: prompt.trim(),
+						isInstrumental: activeTab === 'custom' ? customInstrumental : false,
+						tags: statusJson.tags,
+						musicId: statusJson.musicId,
+						isPublic: false,
+						playCount: 0,
+						likeCount: 0,
+						isNew: true,
+						createdAt: new Date().toISOString(),
+					};
+					tracks = [newTrack, ...tracks];
+					playTrackEntry(newTrack);
+					toast.success('Track ready!');
+				} else if (statusJson.status === 'error') {
+					throw new Error(statusJson.error || 'Generation failed');
+				}
+			}
+			
+			if (!done) {
+				throw new Error("Music generation timed out. Proceeding to fallback.");
+			}
+			return;
+		}
+
+		// ── Sync (Music v1) ─────────────────────────────────────────────────
+		const audioBlob = base64ToBlob(json.audioData, json.mimeType || 'audio/mpeg');
+		const audioUrl = URL.createObjectURL(audioBlob);
+		const newTrack: TrackEntry = {
+			id: crypto.randomUUID(),
+			title: customTitle || `Track - ${new Date().toLocaleTimeString()}`,
+			audioUrl,
+			durationMs: json.durationMs || 0,
+			model: json.model || modelId,
+			prompt: prompt.trim(),
+			isInstrumental: json.isInstrumental ?? false,
+			musicId: json.musicId,
+			isPublic: false,
+			playCount: 0,
+			likeCount: 0,
+			isNew: true,
+			createdAt: new Date().toISOString(),
+		};
+		tracks = [newTrack, ...tracks];
+		playTrackEntry(newTrack);
+		toast.success('Track generated!');
 	}
 
 	// ─── Studio action ────────────────────────────────────────────────────────────

@@ -312,6 +312,7 @@ export interface MusicGenerationParams {
 	callBackUrl?: string; // Webhook URL required by Suno async API
 	userId?: string; // Required by providers that save to storage
 	chatId?: string; // Optional chat context for storage
+	vocalGender?: string; // Optional vocal gender for MusicGPT
 }
 
 export interface AIMusicResponse {

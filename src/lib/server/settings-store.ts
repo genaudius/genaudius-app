@@ -38,6 +38,7 @@ export interface CachedSettings {
   replicateApiKey: string;
   elevenlabsApiKey: string;
   sunoApiKey: string;
+  musicgptApiKey: string;
 
   // Cloud Storage settings
   r2AccountId: string;
@@ -156,6 +157,7 @@ const DEFAULT_SETTINGS: Omit<CachedSettings, 'lastUpdated'> = {
   replicateApiKey: "",
   elevenlabsApiKey: "",
   sunoApiKey: "",
+  musicgptApiKey: "",
   r2AccountId: "",
   r2AccessKeyId: "",
   r2SecretAccessKey: "",
@@ -563,6 +565,11 @@ export async function getElevenLabsApiKey(): Promise<string> {
 
 export async function getSunoApiKey(): Promise<string> {
   const key = await settingsStore.getSetting('sunoApiKey');
+  return typeof key === 'string' ? key : '';
+}
+
+export async function getMusicGptApiKey(): Promise<string> {
+  const key = await settingsStore.getSetting('musicgptApiKey');
   return typeof key === 'string' ? key : '';
 }
 

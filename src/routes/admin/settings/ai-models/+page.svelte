@@ -24,12 +24,14 @@
   let showReplicateKey = $state(false);
   let showElevenLabsKey = $state(false);
   let showSunoKey = $state(false);
+  let showMusicGptKey = $state(false);
 
   // Reactive form values - initialize from server-loaded settings
   let openrouterApiKey = $state((() => data.settings?.openrouterApiKey || "")());
   let replicateApiKey = $state((() => data.settings?.replicateApiKey || "")());
   let elevenlabsApiKey = $state((() => data.settings?.elevenlabsApiKey || "")());
   let sunoApiKey = $state((() => data.settings?.sunoApiKey || "")());
+  let musicgptApiKey = $state((() => data.settings?.musicgptApiKey || "")());
 
   // Derived display values for password fields
   $effect(() => {
@@ -38,6 +40,7 @@
     replicateApiKey = settings?.replicateApiKey || "";
     elevenlabsApiKey = settings?.elevenlabsApiKey || "";
     sunoApiKey = settings?.sunoApiKey || "";
+    musicgptApiKey = settings?.musicgptApiKey || "";
   });
 
   // Check if providers are configured
@@ -55,6 +58,10 @@
 
   function isSunoConfigured() {
     return sunoApiKey;
+  }
+
+  function isMusicGptConfigured() {
+    return musicgptApiKey;
   }
 </script>
 
@@ -440,6 +447,76 @@
             Enables access to Suno music generation models: V3.5, V4, V4.5,
             V4.5 Plus, V4.5 All, V5, and V5.5.
           </p>
+        </div>
+      </Card.Content>
+    </Card.Root>
+
+    <!-- MusicGPT Card -->
+    <Card.Root>
+      <Card.Header>
+        <div class="flex items-center gap-3">
+          <div class="flex-1">
+            <Card.Title class="flex items-center gap-2">
+              <div
+                class="w-8 h-8 bg-purple-600 rounded-md flex items-center justify-center flex-shrink-0"
+              >
+                <span class="text-white text-xs font-bold">MG</span>
+              </div>
+              MusicGPT
+              {#if isMusicGptConfigured()}
+                <CheckCircleIcon class="w-4 h-4 text-green-500" />
+              {/if}
+            </Card.Title>
+            <Card.Description
+              >AI music generation — create songs using MusicGPT API</Card.Description
+            >
+          </div>
+        </div>
+      </Card.Header>
+      <Card.Content class="space-y-4">
+        <div class="p-3 bg-gray-50 border border-gray-200 rounded-md">
+          <h4 class="font-medium text-gray-800 mb-2">Setup Instructions:</h4>
+          <ol class="text-sm text-gray-700 space-y-1 list-decimal list-inside">
+            <li>
+              Go to <a
+                href="https://musicgpt.com"
+                target="_blank"
+                class="underline inline-flex items-center gap-1"
+                >musicgpt.com <ExternalLinkIcon class="w-3 h-3" /></a
+              >
+            </li>
+            <li>Navigate to the API section to get your key</li>
+            <li>Paste the key below</li>
+          </ol>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <Label for="musicgptApiKey">MusicGPT API Key</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onclick={() => (showMusicGptKey = !showMusicGptKey)}
+              class="h-auto p-1"
+              disabled={data.isDemoMode}
+            >
+              {#if showMusicGptKey}
+                <EyeOffIcon class="w-4 h-4" />
+              {:else}
+                <EyeIcon class="w-4 h-4" />
+              {/if}
+            </Button>
+          </div>
+          <Input
+            id="musicgptApiKey"
+            name="musicgptApiKey"
+            type={showMusicGptKey ? "text" : "password"}
+            placeholder="musicgpt-..."
+            bind:value={musicgptApiKey}
+            class="font-mono"
+            disabled={data.isDemoMode}
+          />
         </div>
       </Card.Content>
     </Card.Root>

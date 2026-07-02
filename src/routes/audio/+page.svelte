@@ -121,7 +121,7 @@
     } else if (mode === "stt") {
       stt.selectedModel = "scribe_v1";
     } else if (mode === "music") {
-      music.selectedModel = "suno-v7.5";
+      music.selectedModel = "music_v2";
     } else if (mode === "sound_effects") {
       sfx.selectedModel = "sound_effects_v1";
     }
