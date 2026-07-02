@@ -7,17 +7,17 @@ const SUNO_API_BASE = 'https://api.kie.ai/api/v1';
 
 // Map action name to kie.ai create/status path segments
 const ACTION_MAP: Record<string, { createPath: string; statusPath: string; responseKey: string }> = {
-	'extend':             { createPath: 'extend',             statusPath: 'extend/record-info',             responseKey: 'sunoData' },
-	'upload-extend':      { createPath: 'upload-extend',      statusPath: 'upload-extend/record-info',      responseKey: 'sunoData' },
+	'extend':             { createPath: 'generate/extend',    statusPath: 'generate/record-info',           responseKey: 'sunoData' },
+	'upload-extend':      { createPath: 'extend',             statusPath: 'extend/record-info',             responseKey: 'sunoData' },
 	'upload-cover':       { createPath: 'upload-cover',       statusPath: 'upload-cover/record-info',       responseKey: 'sunoData' },
 	'add-vocals':         { createPath: 'add-vocals',         statusPath: 'add-vocals/record-info',         responseKey: 'sunoData' },
 	'add-instrumental':   { createPath: 'add-instrumental',   statusPath: 'add-instrumental/record-info',   responseKey: 'sunoData' },
 	'mashup':             { createPath: 'mashup',             statusPath: 'mashup/record-info',             responseKey: 'sunoData' },
 	'replace-section':    { createPath: 'replace-section',    statusPath: 'replace-section/record-info',    responseKey: 'sunoData' },
-	'vocal-remove':       { createPath: 'vocal-remove',       statusPath: 'vocal-remove/record-info',       responseKey: 'musicData' },
+	'vocal-remove':       { createPath: 'vocal-removal/generate', statusPath: 'vocal-removal/record-info',  responseKey: 'musicData' },
 	'midi':               { createPath: 'midi',               statusPath: 'midi/record-info',               responseKey: 'midiData' },
 	'persona':            { createPath: 'persona',            statusPath: 'persona/record-info',            responseKey: 'personaData' },
-	'music-video':        { createPath: 'mp4/generate',        statusPath: 'mp4/record-info',        responseKey: 'videoData' },
+	'music-video':        { createPath: 'mp4/generate',       statusPath: 'mp4/record-info',                responseKey: 'videoData' },
 	'wav':                { createPath: 'wav',                statusPath: 'wav/record-info',                responseKey: 'wavData' },
 	'lyrics':             { createPath: 'lyrics/generate',    statusPath: 'lyrics/record-info',             responseKey: 'lyricsData' },
 	'timestamped-lyrics': { createPath: 'timestamped-lyrics', statusPath: 'timestamped-lyrics/record-info', responseKey: 'lyricsData' },
