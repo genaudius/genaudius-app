@@ -455,7 +455,7 @@
 					type: 'music', title: track.title, prompt: track.prompt,
 					audioUrl: track.audioUrl, model: track.model, durationMs: track.durationMs,
 					isInstrumental: track.isInstrumental, tags: track.tags,
-					musicId: track.musicId, isPublic: false,
+					musicId: track.musicId, isPublic: false, coverUrl: track.coverUrl,
 				}),
 			});
 			const json = await res.json();
