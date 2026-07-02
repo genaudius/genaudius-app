@@ -55,7 +55,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
 		if (modelId === 'music_v1') {
 			isElevenLabsModel = true;
-			internalModelId = 'music_v1';
+			internalModelId = 'eleven_music_v1';
 		} else if (modelId === 'music_v2') {
 			isSunoModel = true;
 			internalModelId = 'suno-v7.5';
